@@ -14,39 +14,97 @@
     justify-content: center;
     align-items: center;
   }
-  #login {
+  .page {
+    display: none;
     background: white;
     padding: 40px 30px;
     border-radius: 15px;
     box-shadow: 0 5px 25px rgba(0,0,0,0.2);
     text-align: center;
-    width: 320px;
+    width: 100%;
+    max-width: 380px;
   }
-  #login h1 { color: #075e54; margin-bottom: 20px; font-size: 22px; }
-  #login input {
-    width: 100%; padding: 12px;
-    border: 2px solid #ddd; border-radius: 8px;
-    font-size: 15px; margin-bottom: 15px;
-    outline: none; font-family: inherit;
+  .page.active { display: block; }
+  .page h1 {
+    color: #075e54;
+    margin-bottom: 8px;
+    font-size: 24px;
   }
-  #login input:focus { border-color: #25d366; }
-  #login button {
-    width: 100%; padding: 12px;
-    background: #25d366; color: white;
-    border: none; border-radius: 8px;
-    font-size: 16px; cursor: pointer;
-    font-family: inherit; font-weight: bold;
+  .page p.sub {
+    color: #888;
+    font-size: 13px;
+    margin-bottom: 25px;
   }
-  #chat {
-    display: none; flex-direction: column;
-    width: 100%; max-width: 600px;
-    height: 100vh; background: #efeae2;
+  .page input {
+    width: 100%;
+    padding: 12px 15px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    font-size: 15px;
+    margin-bottom: 12px;
+    outline: none;
+    font-family: inherit;
+    direction: ltr;
+    text-align: left;
   }
-  #header {
-    background: #075e54; color: white;
-    padding: 15px 20px; font-size: 18px;
+  .page input:focus { border-color: #25d366; }
+  .page input::placeholder { color: #aaa; }
+  .page button {
+    width: 100%;
+    padding: 13px;
+    background: #25d366;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    cursor: pointer;
+    font-family: inherit;
     font-weight: bold;
-    display: flex; justify-content: space-between;
+    margin-top: 5px;
+  }
+  .page button:hover { background: #1eb857; }
+  .page button:disabled { background: #ccc; cursor: not-allowed; }
+  .error {
+    color: #e74c3c;
+    font-size: 13px;
+    margin-top: 10px;
+    min-height: 18px;
+  }
+  .success {
+    color: #27ae60;
+    font-size: 13px;
+    margin-top: 10px;
+    min-height: 18px;
+  }
+
+  #code-input {
+    font-size: 24px !important;
+    text-align: center !important;
+    letter-spacing: 8px;
+    direction: ltr;
+  }
+
+  /* چت */
+  #chat-page {
+    display: none;
+    flex-direction: column;
+    width: 100%;
+    max-width: 600px;
+    height: 100vh;
+    background: #efeae2;
+    border-radius: 0;
+    padding: 0;
+    box-shadow: none;
+  }
+  #chat-page.active { display: flex; }
+  #header {
+    background: #075e54;
+    color: white;
+    padding: 15px 20px;
+    font-size: 18px;
+    font-weight: bold;
+    display: flex;
+    justify-content: space-between;
     align-items: center;
   }
   #header small { font-size: 12px; opacity: 0.8; font-weight: normal; }
@@ -88,13 +146,28 @@
 </head>
 <body>
 
-<div id="login">
+<!-- صفحه ۱: ثبت‌نام -->
+<div id="page-signup" class="page active">
   <h1>💬 چت</h1>
-  <input id="username" placeholder="اسمت رو وارد کن..." maxlength="20">
-  <button onclick="startChat()">ورود به چت</button>
+  <p class="sub">ایمیل و شماره‌ت رو وارد کن</p>
+  <input id="email" type="email" placeholder="example@gmail.com" autocomplete="email">
+  <input id="phone" type="tel" placeholder="09123456789" autocomplete="tel">
+  <button id="btn-send" onclick="sendCode()">ارسال کد تأیید</button>
+  <div class="error" id="error1"></div>
 </div>
 
-<div id="chat">
+<!-- صفحه ۲: تأیید کد -->
+<div id="page-verify" class="page">
+  <h1>📧 کد تأیید</h1>
+  <p class="sub">کد ۶ رقمی به ایمیلت فرستادیم</p>
+  <input id="code-input" type="text" maxlength="6" placeholder="000000" inputmode="numeric">
+  <button id="btn-verify" onclick="verifyCode()">تأیید و ورود</button>
+  <div class="error" id="error2"></div>
+  <div class="success" id="success2"></div>
+</div>
+
+<!-- صفحه ۳: چت -->
+<div id="chat-page">
   <div id="header">
     <span>💬 چت عمومی</span>
     <small id="status">در حال اتصال...</small>
@@ -109,18 +182,109 @@
 <script>
 let ws = null;
 let myUsername = "";
+let currentEmail = "";
 
-function startChat() {
-  const name = document.getElementById("username").value.trim();
-  if (!name) return alert("اسمت رو وارد کن!");
-  myUsername = name;
-  document.getElementById("login").style.display = "none";
-  document.getElementById("chat").style.display = "flex";
-  connect();
+// ---------- ابزار ----------
+function showPage(id) {
+  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+  document.getElementById("chat-page").classList.remove("active");
+  if (id === "chat-page") {
+    document.getElementById("chat-page").classList.add("active");
+  } else {
+    document.getElementById(id).classList.add("active");
+  }
 }
 
+// ---------- صفحه ۱ ----------
+async function sendCode() {
+  const email = document.getElementById("email").value.trim();
+  const phone = document.getElementById("phone").value.trim();
+  const err = document.getElementById("error1");
+  const btn = document.getElementById("btn-send");
+
+  err.textContent = "";
+  if (!email || !email.includes("@")) {
+    err.textContent = "ایمیل معتبر وارد کن";
+    return;
+  }
+  if (!phone || phone.length < 10) {
+    err.textContent = "شماره موبایل معتبر وارد کن";
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = "در حال ارسال...";
+
+  try {
+    const res = await fetch("/api/send_code", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, phone })
+    });
+    const data = await res.json();
+
+    if (data.ok) {
+      currentEmail = email;
+      showPage("page-verify");
+      document.getElementById("code-input").focus();
+    } else {
+      err.textContent = data.error || "خطا در ارسال";
+    }
+  } catch (e) {
+    err.textContent = "خطای شبکه";
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "ارسال کد تأیید";
+  }
+}
+
+// ---------- صفحه ۲ ----------
+async function verifyCode() {
+  const code = document.getElementById("code-input").value.trim();
+  const err = document.getElementById("error2");
+  const succ = document.getElementById("success2");
+  const btn = document.getElementById("btn-verify");
+
+  err.textContent = "";
+  succ.textContent = "";
+  if (!code || code.length !== 6) {
+    err.textContent = "کد ۶ رقمی رو وارد کن";
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = "در حال تأیید...";
+
+  try {
+    const res = await fetch("/api/verify_code", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: currentEmail, code })
+    });
+    const data = await res.json();
+
+    if (data.ok) {
+      succ.textContent = "✅ تأیید شد! در حال ورود...";
+      // اسم کاربر = بخش قبل از @ در ایمیل
+      myUsername = currentEmail.split("@")[0];
+      setTimeout(() => {
+        showPage("chat-page");
+        connect();
+      }, 500);
+    } else {
+      err.textContent = data.error || "کد اشتباه";
+      btn.disabled = false;
+      btn.textContent = "تأیید و ورود";
+    }
+  } catch (e) {
+    err.textContent = "خطای شبکه";
+    btn.disabled = false;
+    btn.textContent = "تأیید و ورود";
+  }
+}
+
+// ---------- صفحه ۳: چت ----------
 function connect() {
-  // همون پورت و همون میزبان (بدون تغییر)
   const proto = location.protocol === "https:" ? "wss" : "ws";
   ws = new WebSocket(`${proto}://${location.host}/ws/${encodeURIComponent(myUsername)}`);
 
@@ -133,9 +297,6 @@ function connect() {
   ws.onmessage = (e) => addMessage(JSON.parse(e.data));
   ws.onclose = () => {
     document.getElementById("status").textContent = "قطع شد ❌";
-  };
-  ws.onerror = () => {
-    document.getElementById("status").textContent = "خطا ❌";
   };
 }
 
@@ -180,9 +341,12 @@ function sendMessage() {
 document.getElementById("msg-input").addEventListener("keypress", e => {
   if (e.key === "Enter") sendMessage();
 });
-document.getElementById("username").addEventListener("keypress", e => {
-  if (e.key === "Enter") startChat();
+document.getElementById("code-input").addEventListener("keypress", e => {
+  if (e.key === "Enter") verifyCode();
+});
+document.getElementById("phone").addEventListener("keypress", e => {
+  if (e.key === "Enter") sendCode();
 });
 </script>
 </body>
-</html>
+ </html>
