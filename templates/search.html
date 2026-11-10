@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نتایج جستجو</title>
+    <style>
+        body { font-family: 'Tahoma', sans-serif; background-color: #f0f2f5; margin: 0; }
+        .header { background-color: #5b9bd5; color: white; padding: 15px; display: flex; align-items: center; }
+        .header a { color: white; text-decoration: none; font-size: 24px; margin-left: 15px; }
+        .container { padding: 15px; }
+        .result-item { background: white; display: flex; align-items: center; padding: 15px; margin-bottom: 10px; border-radius: 10px; text-decoration: none; color: inherit; }
+        .result-avatar { width: 50px; height: 50px; border-radius: 50%; background: #ccc; display: flex; justify-content: center; align-items: center; margin-left: 15px; font-weight: bold; overflow: hidden; }
+        .result-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .empty-state { text-align: center; color: #999; margin-top: 50px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <a href="/home">&#8592;</a>
+        <h2 style="margin:0; font-size: 18px;">نتایج جستجو برای: {{ query }}</h2>
+    </div>
+    <div class="container">
+        {% if results %}
+            {% if results.users %}
+                <h3 style="color: #555;">کاربران</h3>
+                {% for user in results.users %}
+                <a href="/user/{{ user['username'] }}" class="result-item">
+                    <div class="result-avatar">
+                        {% if user['profile_pic'] %}<img src="{{ url_for('static', filename='uploads/' + user['profile_pic']) }}">{% else %}{{ user['email'][0] | upper }}{% endif %}
+                    </div>
+                    <div>
+                        <div style="font-weight: bold;">{{ user['display_name'] or 'بدون نام' }}</div>
+                        <div style="color: #777; font-size: 13px;">@{{ user['username'] }}</div>
+                    </div>
+                </a>
+                {% endfor %}
+            {% endif %}
+            
+            {% if results.channels %}
+                <h3 style="color: #555; margin-top: 20px;">کانال‌ها و گروه‌ها</h3>
+                {% for ch in results.channels %}
+                <a href="/chat/{{ ch['id'] }}" class="result-item">
+                    <div class="result-avatar">
+                        {% if ch['profile_pic'] %}<img src="{{ url_for('static', filename='uploads/' + ch['profile_pic']) }}">{% else %}{{ ch['name'][0] | upper }}{% endif %}
+                    </div>
+                    <div>
+                        <div style="font-weight: bold;">{{ ch['name'] }}</div>
+                        <div style="color: #777; font-size: 13px;">{{ ch['description'] or 'بدون توضیحات' }}</div>
+                    </div>
+                </a>
+                {% endfor %}
+            {% endif %}
+        {% else %}
+            <div class="empty-state">
+                <h2>بدون نتیجه</h2>
+                <p>جستجوی دیگری انجام دهید.</p>
+            </div>
+        {% endif %}
+    </div>
+</body>
+              </html>
