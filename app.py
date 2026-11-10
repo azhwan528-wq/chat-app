@@ -27,7 +27,6 @@ SENDER_PASSWORD = os.environ.get("SENDER_PASSWORD", "")
 ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "your_email@gmail.com") 
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "") 
 
-# ⭐ ایمیل حساب پشتیبانی
 SUPPORT_EMAIL = "support@ava.com" 
 
 # ==========================================
@@ -46,7 +45,6 @@ def init_db():
     cursor.execute('''CREATE TABLE IF NOT EXISTS members (id INTEGER PRIMARY KEY AUTOINCREMENT, channel_id INTEGER NOT NULL, user_email TEXT NOT NULL, UNIQUE(channel_id, user_email))''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, channel_id INTEGER NOT NULL, sender_email TEXT NOT NULL, message TEXT NOT NULL, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     
-    # ⭐ ساخت حساب پشتیبانی اگر وجود نداشته باشد
     cursor.execute("SELECT * FROM users WHERE email = ?", (SUPPORT_EMAIL,))
     if not cursor.fetchone():
         cursor.execute("INSERT INTO users (email, phone, is_verified, display_name, username) VALUES (?, '00000000000', 1, 'پشتیبانی آوا', 'support')", (SUPPORT_EMAIL,))
@@ -86,6 +84,7 @@ def login():
         email = request.form.get('email', '').strip().lower()
         phone = request.form.get('phone', '').strip()
         if not email or not phone: return redirect(url_for('login'))
+        
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM users WHERE email = ?", (email,))
@@ -110,10 +109,16 @@ def login():
             cursor.execute("INSERT INTO users (email, phone, verification_code) VALUES (?, ?, ?)", (email, phone, code))
         conn.commit()
         conn.close()
+        
         session['user_email'] = email
         session['generated_code'] = code
         print(f"\n✅ کد برای {email}: {code}\n")
-        send_email(email, code)
+        
+        if send_email(email, code):
+            flash(f"کد تایید به {email} ارسال شد.", "success")
+        else:
+            flash("خطا در ارسال ایمیل. لطفاً بعداً تلاش کنید.", "error")
+            
         return redirect(url_for('verify'))
     return render_template('login.html')
 
@@ -125,11 +130,8 @@ def verify():
             conn = get_db_connection()
             conn.execute("UPDATE users SET is_verified = 1 WHERE email = ?", (session['user_email'],))
             
-            # ⭐ ارسال پیام خوش‌آمدگویی خودکار از طرف پشتیبانی
-            # 1. پیدا کردن یا ساختن یک کانال خصوصی برای پشتیبانی
             support_channel = conn.execute("SELECT * FROM channels WHERE name = 'پشتیبانی آوا' AND owner_email = ?", (SUPPORT_EMAIL,)).fetchone()
             if not support_channel:
-                # ساخت یک کانال مخصوص پشتیبانی
                 invite_token = str(random.randint(100000, 999999))
                 cursor = conn.cursor()
                 cursor.execute("INSERT INTO channels (name, description, owner_email, is_private, channel_type, invite_token) VALUES (?, ?, ?, 1, 'channel', ?)", 
@@ -138,13 +140,11 @@ def verify():
             else:
                 support_channel_id = support_channel['id']
                 
-            # 2. اضافه کردن کاربر به این کانال پشتیبانی (تا بتونه پیام رو ببینه)
             try:
                 conn.execute("INSERT INTO members (channel_id, user_email) VALUES (?, ?)", (support_channel_id, session['user_email']))
             except sqlite3.IntegrityError:
                 pass
             
-            # 3. ارسال پیام خوش‌آمدگویی
             welcome_msg = "🎉 به پیام‌رسان آوا خوش آمدید!\n\nاز این پس می‌توانید گروه و کانال بسازید، با دوستان خود چت کنید و از امکانات برنامه لذت ببرید."
             conn.execute("INSERT INTO messages (channel_id, sender_email, message) VALUES (?, ?, ?)", 
                          (support_channel_id, SUPPORT_EMAIL, welcome_msg))
@@ -169,17 +169,13 @@ def home():
     conn.close()
     return render_template('home.html', user=user, owned_channels=owned_channels, joined_channels=joined_channels)
 
-# ⭐ مسیر جدید: صفحه پشتیبانی
 @app.route('/support')
 def support_chat():
     if not session.get('is_logged_in'): return redirect(url_for('login'))
     conn = get_db_connection()
-    
-    # پیدا کردن کانال پشتیبانی
     support_channel = conn.execute("SELECT * FROM channels WHERE name = 'پشتیبانی آوا' AND owner_email = ?", (SUPPORT_EMAIL,)).fetchone()
     
     if not support_channel:
-        # اگر کانال نبود، بساز
         invite_token = str(random.randint(100000, 999999))
         cursor = conn.cursor()
         cursor.execute("INSERT INTO channels (name, description, owner_email, is_private, channel_type, invite_token) VALUES (?, ?, ?, 1, 'channel', ?)", 
@@ -189,12 +185,9 @@ def support_chat():
     else:
         channel_id = support_channel['id']
         
-    # پیام‌های این کانال
     messages = conn.execute('''SELECT m.*, u.display_name, u.username FROM messages m LEFT JOIN users u ON m.sender_email = u.email WHERE m.channel_id = ? ORDER BY m.timestamp ASC''', (channel_id,)).fetchall()
     conn.close()
     
-    # ما از قالب chat.html استفاده می‌کنیم اما با can_send=False
-    # باید یک آبجکت شبیه کانال بسازیم
     class FakeChannel:
         def __init__(self, id, name):
             self.id = id
@@ -384,14 +377,13 @@ def admin_panel():
                            all_channels=all_channels,
                            total_gb=total_gb, used_gb=used_gb, free_gb=free_gb)
 
-# ⭐ مسیر جدید: ارسال پیام همگانی
 @app.route('/admin/broadcast', methods=['POST'])
 def admin_broadcast():
     if not session.get('is_logged_in') or session.get('user_email') != ADMIN_EMAIL:
         return "404 Not Found", 404
         
     message_text = request.form.get('message_text', '').strip()
-    target = request.form.get('target', 'users') # users یا groups
+    target = request.form.get('target', 'users')
     
     if not message_text:
         flash("متن پیام نمی‌تواند خالی باشد.", "error")
@@ -401,8 +393,6 @@ def admin_broadcast():
     cursor = conn.cursor()
     
     if target == 'users':
-        # ارسال به تمام کاربران (به عنوان پیام پشتیبانی)
-        # 1. پیدا کردن کانال پشتیبانی
         support_channel = cursor.execute("SELECT * FROM channels WHERE name = 'پشتیبانی آوا' AND owner_email = ?", (SUPPORT_EMAIL,)).fetchone()
         if support_channel:
             channel_id = support_channel['id']
@@ -410,4 +400,14 @@ def admin_broadcast():
                          (channel_id, SUPPORT_EMAIL, message_text))
             flash("پیام همگانی به تمام کاربران ارسال شد.", "success")
         else:
-            f
+            flash("کانال پشتیبانی یافت نشد.", "error")
+            
+    elif target == 'groups':
+        all_channels = cursor.execute("SELECT * FROM channels WHERE name != 'پشتیبانی آوا'").fetchall()
+        for ch in all_channels:
+            cursor.execute("INSERT INTO messages (channel_id, sender_email, message) VALUES (?, ?, ?)", 
+                         (ch['id'], ADMIN_EMAIL, f"📢 [اطلاعیه مدیریت]: {message_text}"))
+        flash(f"پیام همگانی به {len(all_channels)} گروه/کانال ارسال شد.", "success")
+        
+    conn.commit()
+    conn.close()
