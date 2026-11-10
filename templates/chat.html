@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ channel['name'] }}</title>
+    <style>
+        body { font-family: 'Tahoma', sans-serif; background-color: #e5ddd5; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; }
+        .header { background-color: #5b9bd5; color: white; padding: 15px; display: flex; align-items: center; justify-content: space-between; }
+        .header a { color: white; text-decoration: none; font-size: 24px; }
+        .chat-box { flex-grow: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+        .message { max-width: 75%; padding: 10px 15px; border-radius: 15px; font-size: 14px; }
+        .my-msg { background-color: #dcf8c6; align-self: flex-end; border-bottom-right-radius: 0; }
+        .other-msg { background-color: white; align-self: flex-start; border-bottom-left-radius: 0; }
+        .sender-name { font-size: 11px; color: #5b9bd5; margin-bottom: 3px; font-weight: bold; }
+        .msg-time { font-size: 10px; color: #999; margin-top: 5px; text-align: left; }
+        .input-area { background: white; padding: 10px; display: flex; align-items: center; gap: 10px; border-top: 1px solid #ccc; }
+        .input-area input { flex-grow: 1; padding: 12px; border: 1px solid #ddd; border-radius: 20px; outline: none; font-family: 'Tahoma'; }
+        .input-area button { background: #5b9bd5; color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; font-size: 20px; }
+        .no-permission { text-align: center; color: #777; font-size: 14px; padding: 20px; background: #f9f9f9; }
+        .invite-box { background: #e1f5fe; padding: 15px; text-align: center; border-bottom: 1px solid #b3e5fc; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <a href="/home">&#8592;</a>
+        <h2 style="margin:0; font-size:18px;">{{ channel['name'] }}</h2>
+        <a href="/chat/{{ channel['id'] }}" style="font-size:20px;" title="رفرش">🔄</a>
+    </div>
+
+    {% if channel['owner_email'] == user_email and channel['name'] != 'پشتیبانی آوا' %}
+    <div class="invite-box">
+        <p style="margin: 0 0 10px; color: #0277bd; font-size: 14px;">لینک دعوت شما:</p>
+        <div style="display: flex; gap: 10px; align-items: center; justify-content: center;">
+            <input type="text" id="inviteLink" value="http://127.0.0.1:5000/join/{{ channel['invite_token'] }}" readonly style="flex-grow: 1; padding: 8px; border: 1px solid #ccc; border-radius: 5px; direction: ltr; font-size: 12px;">
+            <button onclick="copyLink()" style="background: #5b9bd5; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-family: 'Tahoma';">کپی</button>
+        </div>
+    </div>
+    <script>
+        function copyLink() {
+            var copyText = document.getElementById("inviteLink");
+            copyText.select();
+            copyText.setSelectionRange(0, 99999);
+            navigator.clipboard.writeText(copyText.value);
+            alert("لینک کپی شد!");
+        }
+    </script>
+    {% endif %}
+
+    <div class="chat-box" id="chatBox">
+        {% for msg in messages %}
+            <div class="message {{ 'my-msg' if msg['sender_email'] == user_email else 'other-msg' }}">
+                {% if msg['sender_email'] != user_email %}
+                <div class="sender-name">{{ msg['display_name'] or msg['sender_email'] }}</div>
+                {% endif %}
+                <div>{{ msg['message'] }}</div>
+                <div class="msg-time">{{ msg['timestamp'][11:16] }}</div>
+            </div>
+        {% endfor %}
+    </div>
+
+    {% if can_send %}
+    <form method="POST" class="input-area">
+        <input type="text" name="message" placeholder="پیام..." required autocomplete="off">
+        <button type="submit">&#10148;</button>
+    </form>
+    {% else %}
+    <div class="no-permission">🔒 فقط مدیر می‌تواند پیام ارسال کند.</div>
+    {% endif %}
+
+    <script>
+        document.getElementById("chatBox").scrollTop = document.getElementById("chatBox").scrollHeight;
+    </script>
+</body>
+</html>
