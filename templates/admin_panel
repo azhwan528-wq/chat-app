@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>پنل مدیریت آوا</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: 'Tahoma', sans-serif; background-color: #f0f2f5; margin: 0; padding: 15px; }
+        .container { max-width: 900px; margin: 0 auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+        .header h1 { color: #333; margin: 0; font-size: 20px; }
+        .header-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+        .header-actions a, .header-actions button { background: #5b9bd5; color: white; text-decoration: none; padding: 8px 12px; border-radius: 8px; border: none; cursor: pointer; font-family: 'Tahoma'; font-size: 13px; }
+        .btn-backup { background: #28a745 !important; }
+        .btn-restore { background: #ff9800 !important; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 10px; margin-bottom: 20px; }
+        .stat-card { background: white; padding: 15px; border-radius: 10px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .stat-card h2 { margin: 0; color: #5b9bd5; font-size: 28px; }
+        .stat-card p { margin: 5px 0 0; color: #777; font-size: 12px; }
+        .section { background: white; padding: 15px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .section h3 { margin-top: 0; color: #333; border-bottom: 2px solid #5b9bd5; padding-bottom: 10px; font-size: 16px; }
+        .user-card, .channel-card { border: 1px solid #eee; border-radius: 8px; padding: 12px; margin-bottom: 10px; background: #fafafa; }
+        .user-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 5px; }
+        .user-card-email { font-weight: bold; color: #333; font-size: 14px; word-break: break-all; }
+        .user-card-info { font-size: 12px; color: #666; margin-bottom: 10px; }
+        .badges { display: flex; gap: 5px; margin-top: 5px; flex-wrap: wrap; }
+        .badge { padding: 2px 8px; border-radius: 5px; font-size: 11px; }
+        .badge-admin { background: #d4edda; color: #155724; }
+        .badge-user { background: #e2e3e5; color: #383d41; }
+        .badge-banned { background: #f8d7da; color: #721c24; }
+        .action-buttons { display: flex; gap: 5px; flex-wrap: wrap; }
+        .action-btn { padding: 6px 10px; border-radius: 5px; border: none; cursor: pointer; font-size: 11px; font-family: 'Tahoma'; color: white; flex-grow: 1; }
+        .btn-ban { background: #dc3545; }
+        .btn-unban { background: #28a745; }
+        .btn-admin { background: #17a2b8; }
+        .btn-remove-admin { background: #6c757d; }
+        .btn-login { background: #ffc107; color: #333; }
+        .btn-pass { background: #6f42c1; }
+        .btn-delete { background: #e74c3c; }
+        .channel-info { font-size: 12px; color: #777; margin-top: 3px; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background: white; padding: 20px; border-radius: 10px; width: 90%; max-width: 350px; }
+        .modal-content input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ccc; border-radius: 8px; font-family: 'Tahoma'; box-sizing: border-box; }
+        .modal-content button { width: 100%; padding: 12px; background: #5b9bd5; color: white; border: none; border-radius: 8px; cursor: pointer; font-family: 'Tahoma'; margin-top: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>پنل مدیریت آوا</h1>
+            <div class="header-actions">
+                <a href="/home">بازگشت به خانه</a>
+                <a href="/admin/backup_database" class="btn-backup">📥 دانلود بکاپ</a>
+                <button onclick="openRestoreModal()" class="btn-restore">♻️ بازیابی بکاپ</button>
+            </div>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card"><h2>{{ total_users }}</h2><p>کاربران</p></div>
+            <div class="stat-card"><h2>{{ total_channels }}</h2><p>کانال/گروه</p></div>
+            <div class="stat-card"><h2>{{ total_messages }}</h2><p>پیام‌ها</p></div>
+            <div class="stat-card" style="grid-column: span 3;">
+                <h2 style="font-size: 16px;">💾 فضا: {{ free_gb }} GB خالی</h2>
+                <p>مصرف شده: {{ used_gb }} GB از {{ total_gb }} GB</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>ارسال پیام همگانی</h3>
+            <form action="/admin/broadcast" method="POST">
+                <textarea name="message_text" placeholder="متن پیام خود را وارد کنید..." required style="width:100%; padding:10px; border-radius:8px; border:1px solid #ddd; font-family:'Tahoma'; margin-bottom:10px; resize:vertical; min-height:80px;"></textarea>
+                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <select name="target" style="padding:10px; border-radius:8px; border:1px solid #ddd; font-family:'Tahoma'; flex:1;">
+                        <option value="users">ارسال به تمام کاربران (از طرف پشتیبانی)</option>
+                        <option value="groups">ارسال به تمام گروه‌ها و کانال‌ها (اطلاعیه مدیریت)</option>
+                    </select>
+                    <button type="submit" style="background:#5b9bd5; color:white; border:none; padding:10px 20px; border-radius:8px; cursor:pointer; font-family:'Tahoma';">ارسال</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="section">
+            <h3>مدیریت کاربران</h3>
+            {% if all_users %}
+                {% for u in all_users %}
+                <div class="user-card">
+                    <div class="user-card-header">
+                        <div class="user-card-email">{{ u['email'] }}</div>
+                        <div class="badges">
+                            {% if u['is_admin'] == 1 %}<span class="badge badge-admin">ادمین</span>{% endif %}
+                            {% if u['is_banned'] == 1 %}<span class="badge badge-banned">مسدود</span>{% endif %}
+                            {% if u['is_admin'] == 0 and u['is_banned'] == 0 %}<span class="badge badge-user">کاربر</span>{% endif %}
+                        </div>
+                    </div>
+                    <div class="user-card-info">
+                        📞 {{ u['phone'] }} <br>
+                        👤 {{ u['display_name'] or 'بدون نام' }} - @{{ u['username'] or 'بدون آیدی' }}
+                    </div>
+                    <div class="action-buttons">
+                        <form action="/admin/user_action/ban/{{ u['id'] }}" method="POST" style="margin:0; flex:1;">
+                            <button type="submit" class="action-btn {{ 'btn-unban' if u['is_banned'] == 1 else 'btn-ban' }}" style="width:100%;">
+                                {{ 'آنبن' if u['is_banned'] == 1 else 'بن' }}
+                            </button>
+                        </form>
+                        <form action="/admin/user_action/make_admin/{{ u['id'] }}" method="POST" style="margin:0; flex:1;">
+                            <button type="submit" class="action-btn {{ 'btn-remove-admin' if u['is_admin'] == 1 else 'btn-admin' }}" style="width:100%;">
+                                {{ 'حذف ادمین' if u['is_admin'] == 1 else 'ادمین' }}
+                            </button>
+                        </form>
+                        <form action="/admin/user_action/login_as/{{ u['id'] }}" method="POST" style="margin:0; flex:1;">
+                            <button type="submit" class="action-btn btn-login" style="width:100%;">ورود</button>
+                        </form>
+                        <button class="action-btn btn-pass" onclick="openPassModal({{ u['id'] }})" style="flex:1;">رمز</button>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p style="text-align:center; color:#999;">هیچ کاربری یافت نشد.</p>
+            {% endif %}
+        </div>
+
+        <div class="section">
+            <h3>مدیریت کانال‌ها و گروه‌ها</h3>
+            {% if all_channels %}
+                {% for ch in all_channels %}
+                <div class="channel-card">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:5px;">
+                        <div>
+                            <div style="font-weight:bold; font-size:14px;">{{ ch['name'] }} ({{ 'گروه' if ch['channel_type'] == 'group' else 'کانال' }})</div>
+                            <div class="channel-info">مالک: {{ ch['owner_email'] }} | {{ 'خصوصی' if ch['is_private'] else 'عمومی' }}</div>
+                        </div>
+                        <form action="/admin/delete_channel/{{ ch['id'] }}" method="POST" style="margin:0;" onsubmit="return confirm('آیا از حذف مطمئن هستید؟');">
+                            <button type="submit" class="action-btn btn-delete" style="width:auto; padding:8px 15px;">حذف</button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p style="text-align:center; color:#999;">هیچ کانال یا گروهی یافت نشد.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div id="passModal" class="modal">
+        <div class="modal-content">
+            <h3 style="margin-top:0;">تنظیم رمز اختصاصی</h3>
+            <form id="passForm" method="POST">
+                <input type="password" name="new_password" placeholder="رمز جدید" required>
+                <button type="submit">ذخیره</button>
+            </form>
+            <button onclick="closePassModal()" style="background:#ccc; color:#333;">انصراف</button>
+        </div>
+    </div>
+
+    <div id="restoreModal" class="modal">
+        <div class="modal-content">
+            <h3 style="margin-top:0;">بازیابی از بکاپ</h3>
+            <p style="color:#d32f2f; font-size:12px;">⚠️ هشدار: تمام اطلاعات فعلی پاک شده و اطلاعات فایل بکاپ جایگزین می‌شود!</p>
+            <form action="/admin/restore_database" method="POST" enctype="multipart/form-data">
+                <input type="file" name="backup_file" accept=".db" required>
+                <button type="submit" style="background:#ff9800;">بازیابی</button>
+            </form>
+            <button onclick="closeRestoreModal()" style="background:#ccc; color:#333;">انصراف</button>
+        </div>
+    </div>
+
+    <script>
+        function openPassModal(userId) {
+            document.getElementById('passModal').style.display = 'flex';
+            document.getElementById('passForm').action = '/admin/user_action/set_password/' + userId;
+        }
+        function closePassModal() { document.getElementById('passModal').style.display = 'none'; }
+        function openRestoreModal() { document.getElementById('restoreModal').style.display = 'flex'; }
+        function closeRestoreModal() { document.getElementById('restoreModal').style.display = 'none'; }
+    </script>
+</body>
+</html>
