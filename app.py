@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash, send_file
 import smtplib
 import ssl
+import requests
 from email.mime.text import MIMEText
 import random
 import sqlite3
@@ -58,16 +59,31 @@ init_db()
 # توابع کمکی
 # ==========================================
 def send_email(receiver_email, code):
-    msg = MIMEText(f"کد تایید شما: {code}", 'plain', 'utf-8')
-    msg['Subject'] = 'کد تایید آوا'
-    msg['From'] = SENDER_EMAIL
-    msg['To'] = receiver_email
+    RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+    
+    if not RESEND_API_KEY:
+        print("❌ خطا: RESEND_API_KEY ست نشده است.")
+        return False
+        
+    url = "https://api.resend.com/emails"
+    headers = {
+        "Authorization": f"Bearer {RESEND_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    data = {
+        "from": "onboarding@resend.dev",
+        "to": [receiver_email],
+        "subject": "کد تایید پیام‌رسان آوا",
+        "html": f"<h2>کد تایید شما: <strong>{code}</strong></h2><p>این کد را در برنامه وارد کنید.</p>"
+    }
+    
     try:
-        context = ssl.create_default_context()
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=context, timeout=60) as server:
-            server.login(SENDER_EMAIL, SENDER_PASSWORD)
-            server.send_message(msg)
-        return True
+        response = requests.post(url, json=data, headers=headers, timeout=30)
+        if response.status_code == 200:
+            return True
+        else:
+            print(f"❌ خطا در ارسال ایمیل: {response.text}")
+            return False
     except Exception as e:
         print(f"❌ خطا: {e}")
         return False
@@ -426,16 +442,16 @@ def admin_user_action(action, user_id):
     if action == 'ban':
         new_status = 0 if user['is_banned'] == 1 else 1
         conn.execute("UPDATE users SET is_banned = ? WHERE id = ?", (new_status, user_id))
-        flash(f"وضعیت مسدودی تغییر کرد.", "success")
+        flash("وضعیت مسدودی تغییر کرد.", "success")
     elif action == 'make_admin':
         new_admin_status = 0 if user['is_admin'] == 1 else 1
         conn.execute("UPDATE users SET is_admin = ? WHERE id = ?", (new_admin_status, user_id))
-        flash(f"وضعیت ادمین تغییر کرد.", "success")
+        flash("وضعیت ادمین تغییر کرد.", "success")
     elif action == 'set_password':
         new_password = request.form.get('new_password', '').strip()
         if new_password:
             conn.execute("UPDATE users SET admin_custom_password = ? WHERE id = ?", (new_password, user_id))
-            flash(f"رمز اختصاصی تنظیم شد.", "success")
+            flash("رمز اختصاصی تنظیم شد.", "success")
     elif action == 'login_as':
         conn.close()
         session['user_email'] = user['email']
@@ -497,9 +513,6 @@ def restore_database():
         flash("لطفاً یک فایل معتبر با پسوند .db انتخاب کنید.", "error")
         return redirect(url_for('admin_panel'))
 
-# ==========================================
-# اجرای برنامه روی رندر
-# ==========================================
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(debug=False, host='0.0.0.0', port=port)
