@@ -499,20 +499,38 @@ def backup_database():
         download_name=filename
     )
 
-@app.route('/admin/restore_database', methods=['POST'])
-def restore_database():
+@app.route('/admin/broadcast', methods=['POST'])
+def admin_broadcast():
     if not session.get('is_logged_in') or session.get('user_email') != ADMIN_EMAIL:
         return "404 Not Found", 404
         
-    file = request.files.get('backup_file')
-    if file and file.filename.endswith('.db'):
-        file.save('ava.db')
-        flash("دیتابیس با موفقیت بازیابی شد! لطفاً صفحه را رفرش کنید.", "success")
+    message_text = request.form.get('message_text', '').strip()
+    target = request.form.get('target', 'users')
+    
+    if not message_text:
+        flash("متن پیام نمی‌تواند خالی باشد.", "error")
         return redirect(url_for('admin_panel'))
-    else:
-        flash("لطفاً یک فایل معتبر با پسوند .db انتخاب کنید.", "error")
-        return redirect(url_for('admin_panel'))
-
-if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    app.run(debug=False, host='0.0.0.0', port=port)
+        
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    if target == 'users':
+        support_channel = cursor.execute("SELECT * FROM channels WHERE name = 'پشتیبانی آوا' AND owner_email = ?", (SUPPORT_EMAIL,)).fetchone()
+        if support_channel:
+            channel_id = support_channel['id']
+            cursor.execute("INSERT INTO messages (channel_id, sender_email, message) VALUES (?, ?, ?)", 
+                         (channel_id, SUPPORT_EMAIL, message_text))
+            flash("پیام همگانی به تمام کاربران ارسال شد.", "success")
+        else:
+            flash("کانال پشتیبانی یافت نشد.", "error")
+            
+    elif target == 'groups':
+        all_channels = cursor.execute("SELECT * FROM channels WHERE name != 'پشتیبانی آوا'").fetchall()
+        for ch in all_channels:
+            cursor.execute("INSERT INTO messages (channel_id, sender_email, message) VALUES (?, ?, ?)", 
+                         (ch['id'], ADMIN_EMAIL, f"📢 [اطلاعیه مدیریت]: {message_text}"))
+        flash(f"پیام همگانی به {len(all_channels)} گروه/کانال ارسال شد.", "success")
+        
+    conn.commit()
+    conn.close()
+    return redirect(url_for('admin_panel'))
