@@ -417,7 +417,8 @@ def admin_broadcast():
             flash("پیام همگانی به تمام کاربران ارسال شد.", "success")
         else:
             flash("کانال پشتیبانی یافت نشد.", "error")
-            elif target == 'groups':
+            
+        elif target == 'groups':
         all_channels = cursor.execute("SELECT * FROM channels WHERE name != 'پشتیبانی آوا'").fetchall()
         for ch in all_channels:
             cursor.execute("INSERT INTO messages (channel_id, sender_email, message) VALUES (?, ?, ?)", 
