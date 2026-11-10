@@ -409,25 +409,25 @@ def admin_broadcast():
     cursor = conn.cursor()
     
     if target == 'users':
-        support_channel = cursor.execute("SELECT * FROM channels WHERE name = 'پشتیبانی آوا' AND owner_email = ?", (SUPPORT_EMAIL,)).fetchone()
-        if support_channel:
-            channel_id = support_channel['id']
-            cursor.execute("INSERT INTO messages (channel_id, sender_email, message) VALUES (?, ?, ?)", 
-                         (channel_id, SUPPORT_EMAIL, message_text))
-            flash("پیام همگانی به تمام کاربران ارسال شد.", "success")
-        else:
-            flash("کانال پشتیبانی یافت نشد.", "error")
-            
-        elif target == 'groups':
-        all_channels = cursor.execute("SELECT * FROM channels WHERE name != 'پشتیبانی آوا'").fetchall()
-        for ch in all_channels:
-            cursor.execute("INSERT INTO messages (channel_id, sender_email, message) VALUES (?, ?, ?)", 
-                         (ch['id'], ADMIN_EMAIL, f"📢 [اطلاعیه مدیریت]: {message_text}"))
-        flash(f"پیام همگانی به {len(all_channels)} گروه/کانال ارسال شد.", "success")
+    support_channel = cursor.execute("SELECT * FROM channels WHERE name = 'پشتیبانی آوا' AND owner_email = ?", (SUPPORT_EMAIL,)).fetchone()
+    if support_channel:
+        channel_id = support_channel['id']
+        cursor.execute("INSERT INTO messages (channel_id, sender_email, message) VALUES (?, ?, ?)", 
+                     (channel_id, SUPPORT_EMAIL, message_text))
+        flash("پیام همگانی به تمام کاربران ارسال شد.", "success")
+    else:
+        flash("کانال پشتیبانی یافت نشد.", "error")
         
-    conn.commit()
-    conn.close()
-    return redirect(url_for('admin_panel'))
+elif target == 'groups':
+    all_channels = cursor.execute("SELECT * FROM channels WHERE name != 'پشتیبانی آوا'").fetchall()
+    for ch in all_channels:
+        cursor.execute("INSERT INTO messages (channel_id, sender_email, message) VALUES (?, ?, ?)", 
+                     (ch['id'], ADMIN_EMAIL, f"📢 [اطلاعیه مدیریت]: {message_text}"))
+    flash(f"پیام همگانی به {len(all_channels)} گروه/کانال ارسال شد.", "success")
+    
+conn.commit()
+conn.close()
+return redirect(url_for('admin_panel'))
 
 @app.route('/admin/user_action/<action>/<int:user_id>', methods=['POST'])
 def admin_user_action(action, user_id):
