@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>پیام‌رسان آوا | ورود</title>
+    <style>
+        body { font-family: 'Tahoma', sans-serif; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .box { background: white; width: 100%; max-width: 400px; padding: 40px 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center; }
+        .logo { font-size: 40px; font-weight: bold; color: #5b9bd5; margin-bottom: 20px; }
+        input { width: 90%; padding: 15px; margin: 10px 0; border: 1px solid #ccc; border-radius: 8px; font-family: 'Tahoma'; font-size: 16px; direction: ltr; text-align: left; }
+        .btn { background: #5b9bd5; color: white; border: none; padding: 15px 40px; border-radius: 8px; font-size: 16px; cursor: pointer; font-family: 'Tahoma'; margin-top: 15px; width: 90%; }
+        .alert-error { background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; margin-bottom: 15px; font-size: 14px; }
+        .alert-success { background-color: #d4edda; color: #155724; padding: 10px; border-radius: 5px; margin-bottom: 15px; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <div class="logo">آوا</div>
+        <h2>ورود به برنامه</h2>
+        <p>لطفاً ایمیل و شماره خود را وارد کنید</p>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+        <form method="POST">
+            <input type="email" name="email" placeholder="example@gmail.com" required>
+            <input type="tel" name="phone" placeholder="09123456789" required>
+            <button type="submit" class="btn">ادامه</button>
+        </form>
+    </div>
+</body>
+</html>
