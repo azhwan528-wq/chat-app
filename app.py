@@ -1,7 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash, send_file
 import smtplib
 import ssl
-import requests
 from email.mime.text import MIMEText
 import random
 import sqlite3
@@ -22,11 +21,11 @@ UPLOAD_FOLDER = 'static/uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 if not os.path.exists(UPLOAD_FOLDER): os.makedirs(UPLOAD_FOLDER)
 
-SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "your_email@gmail.com") 
-SENDER_PASSWORD = os.environ.get("SENDER_PASSWORD", "") 
+SENDER_EMAIL = "aghwan528@gmail.com" 
+SENDER_PASSWORD = "gsuj yigl jjrn qqih" 
 
-ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "your_email@gmail.com") 
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "") 
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "aghwan528@gmail.com") 
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "pnl_admin_ava_a.gh.k.s.a.h") 
 
 SUPPORT_EMAIL = "support@ava.com" 
 
@@ -59,31 +58,16 @@ init_db()
 # توابع کمکی
 # ==========================================
 def send_email(receiver_email, code):
-    RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
-    
-    if not RESEND_API_KEY:
-        print("❌ خطا: RESEND_API_KEY ست نشده است.")
-        return False
-        
-    url = "https://api.resend.com/emails"
-    headers = {
-        "Authorization": f"Bearer {RESEND_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    data = {
-        "from": "onboarding@resend.dev",
-        "to": [receiver_email],
-        "subject": "کد تایید پیام‌رسان آوا",
-        "html": f"<h2>کد تایید شما: <strong>{code}</strong></h2><p>این کد را در برنامه وارد کنید.</p>"
-    }
-    
+    msg = MIMEText(f"کد تایید شما: {code}", 'plain', 'utf-8')
+    msg['Subject'] = 'کد تایید پیام‌رسان آوا'
+    msg['From'] = SENDER_EMAIL
+    msg['To'] = receiver_email
     try:
-        response = requests.post(url, json=data, headers=headers, timeout=30)
-        if response.status_code == 200:
-            return True
-        else:
-            print(f"❌ خطا در ارسال ایمیل: {response.text}")
-            return False
+        context = ssl.create_default_context()
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=context, timeout=60) as server:
+            server.login(SENDER_EMAIL, SENDER_PASSWORD)
+            server.send_message(msg)
+        return True
     except Exception as e:
         print(f"❌ خطا: {e}")
         return False
@@ -116,6 +100,7 @@ def login():
             session['user_email'] = email
             session['is_logged_in'] = True
             session.pop('_flashes', None)
+            flash("خوش آمدید! شما قبلاً ثبت‌نام کرده بودید.", "success")
             return redirect(url_for('home'))
             
         code = str(random.randint(100000, 999999))
@@ -409,25 +394,24 @@ def admin_broadcast():
     cursor = conn.cursor()
     
     if target == 'users':
-    support_channel = cursor.execute("SELECT * FROM channels WHERE name = 'پشتیبانی آوا' AND owner_email = ?", (SUPPORT_EMAIL,)).fetchone()
-    if support_channel:
-        channel_id = support_channel['id']
-        cursor.execute("INSERT INTO messages (channel_id, sender_email, message) VALUES (?, ?, ?)", 
-                     (channel_id, SUPPORT_EMAIL, message_text))
-        flash("پیام همگانی به تمام کاربران ارسال شد.", "success")
-    else:
-        flash("کانال پشتیبانی یافت نشد.", "error")
+        support_channel = cursor.execute("SELECT * FROM channels WHERE name = 'پشتیبانی آوا' AND owner_email = ?", (SUPPORT_EMAIL,)).fetchone()
+        if support_channel:
+            channel_id = support_channel['id']
+            cursor.execute("INSERT INTO messages (channel_id, sender_email, message) VALUES (?, ?, ?)", 
+                         (channel_id, SUPPORT_EMAIL, message_text))
+            flash("پیام همگانی به تمام کاربران ارسال شد.", "success")
+        else:
+            flash("کانال پشتیبانی یافت نشد.", "error")
+    elif target == 'groups':
+        all_channels = cursor.execute("SELECT * FROM channels WHERE name != 'پشتیبانی آوا'").fetchall()
+        for ch in all_channels:
+            cursor.execute("INSERT INTO messages (channel_id, sender_email, message) VALUES (?, ?, ?)", 
+                         (ch['id'], ADMIN_EMAIL, f"📢 [اطلاعیه مدیریت]: {message_text}"))
+        flash(f"پیام همگانی به {len(all_channels)} گروه/کانال ارسال شد.", "success")
         
-elif target == 'groups':
-    all_channels = cursor.execute("SELECT * FROM channels WHERE name != 'پشتیبانی آوا'").fetchall()
-    for ch in all_channels:
-        cursor.execute("INSERT INTO messages (channel_id, sender_email, message) VALUES (?, ?, ?)", 
-                     (ch['id'], ADMIN_EMAIL, f"📢 [اطلاعیه مدیریت]: {message_text}"))
-    flash(f"پیام همگانی به {len(all_channels)} گروه/کانال ارسال شد.", "success")
-    
-conn.commit()
-conn.close()
-return redirect(url_for('admin_panel'))
+    conn.commit()
+    conn.close()
+    return redirect(url_for('admin_panel'))
 
 @app.route('/admin/user_action/<action>/<int:user_id>', methods=['POST'])
 def admin_user_action(action, user_id):
@@ -499,38 +483,20 @@ def backup_database():
         download_name=filename
     )
 
-@app.route('/admin/broadcast', methods=['POST'])
-def admin_broadcast():
+@app.route('/admin/restore_database', methods=['POST'])
+def restore_database():
     if not session.get('is_logged_in') or session.get('user_email') != ADMIN_EMAIL:
         return "404 Not Found", 404
         
-    message_text = request.form.get('message_text', '').strip()
-    target = request.form.get('target', 'users')
-    
-    if not message_text:
-        flash("متن پیام نمی‌تواند خالی باشد.", "error")
+    file = request.files.get('backup_file')
+    if file and file.filename.endswith('.db'):
+        file.save('ava.db')
+        flash("دیتابیس با موفقیت بازیابی شد! لطفاً صفحه را رفرش کنید.", "success")
         return redirect(url_for('admin_panel'))
-        
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    if target == 'users':
-        support_channel = cursor.execute("SELECT * FROM channels WHERE name = 'پشتیبانی آوا' AND owner_email = ?", (SUPPORT_EMAIL,)).fetchone()
-        if support_channel:
-            channel_id = support_channel['id']
-            cursor.execute("INSERT INTO messages (channel_id, sender_email, message) VALUES (?, ?, ?)", 
-                         (channel_id, SUPPORT_EMAIL, message_text))
-            flash("پیام همگانی به تمام کاربران ارسال شد.", "success")
-        else:
-            flash("کانال پشتیبانی یافت نشد.", "error")
-            
-    elif target == 'groups':
-        all_channels = cursor.execute("SELECT * FROM channels WHERE name != 'پشتیبانی آوا'").fetchall()
-        for ch in all_channels:
-            cursor.execute("INSERT INTO messages (channel_id, sender_email, message) VALUES (?, ?, ?)", 
-                         (ch['id'], ADMIN_EMAIL, f"📢 [اطلاعیه مدیریت]: {message_text}"))
-        flash(f"پیام همگانی به {len(all_channels)} گروه/کانال ارسال شد.", "success")
-        
-    conn.commit()
-    conn.close()
-    return redirect(url_for('admin_panel'))
+    else:
+        flash("لطفاً یک فایل معتبر با پسوند .db انتخاب کنید.", "error")
+        return redirect(url_for('admin_panel'))
+
+if __name__ == '__main__':
+    port = int(os.environ.get("PORT", 5000))
+    app.run(debug=False, host='0.0.0.0', port=port)
