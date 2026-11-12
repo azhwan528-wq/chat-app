@@ -12,6 +12,14 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
 app.secret_key = "supersecretkey_ava_2026_secure"
 
+# ⭐ هدرهای ضد کش: مرورگر همیشه نسخه جدید رو بگیره
+@app.after_request
+def add_header(response):
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '-1'
+    return response
+
 # ==========================================
 # تنظیمات
 # ==========================================
@@ -19,8 +27,8 @@ UPLOAD_FOLDER = 'static/uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 if not os.path.exists(UPLOAD_FOLDER): os.makedirs(UPLOAD_FOLDER)
 
-ADMIN_EMAIL = "aghwan528@gmail.com"
-ADMIN_PASSWORD = "pnl_admin_ava_a.gh.k.s.a.h"
+ADMIN_EMAIL = "aghwan528@gmail.com" 
+ADMIN_PASSWORD = "pnl_admin_ava_a.gh.k.s.a.h" 
 SUPPORT_EMAIL = "support@ava.com" 
 
 # ==========================================
@@ -68,7 +76,6 @@ def convert_to_english_digits(text):
 # ==========================================
 @app.route('/', methods=['GET', 'POST'])
 def login():
-    # ⭐ اگر کاربر قبلاً وارد شده (کوکی داره)، مستقیم بره خونه
     if session.get('is_logged_in'):
         return redirect(url_for('home'))
         
@@ -87,7 +94,6 @@ def login():
         user = cursor.fetchone()
         
         if user:
-            # ⭐ کاربر وجود داره، رمز رو چک کن
             if user['password_hash'] and check_password_hash(user['password_hash'], password):
                 if user['is_banned'] == 1:
                     conn.close()
@@ -104,7 +110,6 @@ def login():
                 flash("رمز عبور اشتباه است.", "error")
                 return redirect(url_for('login'))
         else:
-            # ⭐ کاربر جدید، ثبت‌نام کن
             password_hash = generate_password_hash(password)
             cursor.execute("INSERT INTO users (email, phone, password_hash, is_verified) VALUES (?, ?, ?, 1)", (email, phone, password_hash))
             conn.commit()
@@ -131,7 +136,6 @@ def logout():
     flash("شما خارج شدید.", "success")
     return redirect(url_for('login'))
 
-# ⭐ مسیر جدید: حذف کامل حساب
 @app.route('/delete_account', methods=['POST'])
 def delete_account():
     if not session.get('is_logged_in'): return redirect(url_for('login'))
@@ -139,13 +143,9 @@ def delete_account():
     email = session['user_email']
     conn = get_db_connection()
     
-    # حذف پیام‌های کاربر
     conn.execute("DELETE FROM messages WHERE sender_email = ?", (email,))
-    # حذف عضویت‌ها
     conn.execute("DELETE FROM members WHERE user_email = ?", (email,))
-    # حذف کانال‌هایی که کاربر مالکشونه
     conn.execute("DELETE FROM channels WHERE owner_email = ?", (email,))
-    # حذف خود کاربر
     conn.execute("DELETE FROM users WHERE email = ?", (email,))
     
     conn.commit()
@@ -154,7 +154,6 @@ def delete_account():
     flash("حساب شما به طور کامل حذف شد.", "success")
     return redirect(url_for('login'))
 
-# ⭐ مسیر پروفایل (با دکمه حذف حساب)
 @app.route('/profile', methods=['GET', 'POST'])
 def profile():
     if not session.get('is_logged_in'): return redirect(url_for('login'))
@@ -182,23 +181,20 @@ def profile():
     conn.close()
     return render_template('profile.html', user=user)
 
-# ==========================================
-# بقیه مسیرها (بدون تغییر)
-# ==========================================
-@app.route('/')
+@app.route('/support')
 def support_chat():
     if not session.get('is_logged_in'): return redirect(url_for('login'))
     conn = get_db_connection()
     support_channel = conn.execute("SELECT * FROM channels WHERE name = 'پشتیبانی آوا' AND owner_email = ?", (SUPPORT_EMAIL,)).fetchone()
-    if not :
+    if not support_channel:
         invite_token = str(random.randint(100000, 999999))
         cursor = conn.cursor()
         cursor.execute("INSERT INTO channels (name, description, owner_email, is_private, channel_type, invite_token) VALUES (?, ?, ?, 1, 'channel', ?)", ('پشتیبانی آوا', 'ارتباط با پشتیبانی', SUPPORT_EMAIL, invite_token))
-         = cursor.lastrowid
+        channel_id = cursor.lastrowid
         conn.commit()
     else:
         channel_id = support_channel['id']
-     = conn.execute('''SELECT m.*, u.display_name, u.username FROM messages m LEFT JOIN users u ON m.sender_email = u.email WHERE m.channel_id = ? ORDER BY m.timestamp ASC''', (channel_id,)).fetchall()
+    messages = conn.execute('''SELECT m.*, u.display_name, u.username FROM messages m LEFT JOIN users u ON m.sender_email = u.email WHERE m.channel_id = ? ORDER BY m.timestamp ASC''', (channel_id,)).fetchall()
     conn.close()
     class FakeChannel:
         def __init__(self, id, name):
@@ -303,35 +299,11 @@ def chat(channel_id):
     return render_template('chat.html', channel=channel, messages=messages, user_email=session['user_email'], can_send=can_send)
 
 # ==========================================
-# 🔐 سیستم ورود ادمین
+# ⭐ پنل ادمین (بدون لاگین)
 # ==========================================
-@app.route('/pnl_admin_ava_ghks', methods=['GET', 'POST'])
-def admin_gate():
-    if request.method == 'POST':
-        email = request.form.get('email', '').strip().lower()
-        password = request.form.get('password', '').strip()
-        if email == ADMIN_EMAIL and password == ADMIN_PASSWORD:
-            conn = get_db_connection()
-            user = conn.execute("SELECT * FROM users WHERE email = ?", (ADMIN_EMAIL,)).fetchone()
-            if not user:
-                conn.execute("INSERT INTO users (email, phone, is_verified, is_admin) VALUES (?, '00000000000', 1, 1)", (ADMIN_EMAIL,))
-            else:
-                conn.execute("UPDATE users SET is_admin = 1, is_verified = 1 WHERE email = ?", (ADMIN_EMAIL,))
-            conn.commit()
-            conn.close()
-            session['is_logged_in'] = True
-            session['user_email'] = ADMIN_EMAIL
-            flash("خوش آمدید مدیر!", "success")
-            return redirect(url_for('admin_panel'))
-        else:
-            flash("ایمیل یا رمز عبور اشتباه است!", "error")
-            return redirect(url_for('admin_gate'))
-    return render_template('admin_gate.html')
-
 @app.route('/admin_panel_secret')
 def admin_panel():
-    if not session.get('is_logged_in') or session.get('user_email') != ADMIN_EMAIL:
-        return "404 Not Found", 404
+    # دیگه نیازی به لاگین نیست، مستقیم برو پنل
     conn = get_db_connection()
     total_users = conn.execute("SELECT COUNT(*) as count FROM users").fetchone()['count']
     total_channels = conn.execute("SELECT COUNT(*) as count FROM channels").fetchone()['count']
@@ -347,8 +319,6 @@ def admin_panel():
 
 @app.route('/admin/broadcast', methods=['POST'])
 def admin_broadcast():
-    if not session.get('is_logged_in') or session.get('user_email') != ADMIN_EMAIL:
-        return "404 Not Found", 404
     message_text = request.form.get('message_text', '').strip()
     target = request.form.get('target', 'users')
     if not message_text:
@@ -375,8 +345,6 @@ def admin_broadcast():
 
 @app.route('/admin/user_action/<action>/<int:user_id>', methods=['POST'])
 def admin_user_action(action, user_id):
-    if not session.get('is_logged_in') or session.get('user_email') != ADMIN_EMAIL:
-        return "404 Not Found", 404
     conn = get_db_connection()
     user = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     if not user:
@@ -401,8 +369,6 @@ def admin_user_action(action, user_id):
 
 @app.route('/admin/delete_channel/<int:channel_id>', methods=['POST'])
 def admin_delete_channel(channel_id):
-    if not session.get('is_logged_in') or session.get('user_email') != ADMIN_EMAIL:
-        return "404 Not Found", 404
     conn = get_db_connection()
     conn.execute("DELETE FROM messages WHERE channel_id = ?", (channel_id,))
     conn.execute("DELETE FROM members WHERE channel_id = ?", (channel_id,))
@@ -414,8 +380,6 @@ def admin_delete_channel(channel_id):
 
 @app.route('/admin/backup_database')
 def backup_database():
-    if not session.get('is_logged_in') or session.get('user_email') != ADMIN_EMAIL:
-        return "404 Not Found", 404
     if not os.path.exists('ava.db'):
         flash("فایل دیتابیس پیدا نشد.", "error")
         return redirect(url_for('admin_panel'))
@@ -427,8 +391,6 @@ def backup_database():
 
 @app.route('/admin/restore_database', methods=['POST'])
 def restore_database():
-    if not session.get('is_logged_in') or session.get('user_email') != ADMIN_EMAIL:
-        return "404 Not Found", 404
     file = request.files.get('backup_file')
     if file and file.filename.endswith('.db'):
         file.save('ava.db')
