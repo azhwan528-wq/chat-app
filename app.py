@@ -63,10 +63,12 @@ def send_email(receiver_email, code):
     msg['From'] = SENDER_EMAIL
     msg['To'] = receiver_email
     try:
-        context = ssl.create_default_context()
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=context, timeout=60) as server:
-            server.login(SENDER_EMAIL, SENDER_PASSWORD)
-            server.send_message(msg)
+        # استفاده از پورت 587 و STARTTLS به جای 465 و SSL
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(SENDER_EMAIL, SENDER_PASSWORD)
+        server.send_message(msg)
+        server.quit()
         return True
     except Exception as e:
         print(f"❌ خطا: {e}")
