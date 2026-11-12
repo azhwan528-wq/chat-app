@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>پشتیبانی آوا</title>
+    <style>
+        body { font-family: 'Tahoma', sans-serif; background-color: #e5ddd5; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; }
+        .header { background-color: #5b9bd5; color: white; padding: 15px; display: flex; align-items: center; justify-content: space-between; }
+        .header a { color: white; text-decoration: none; font-size: 24px; }
+        .chat-box { flex-grow: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+        .message { max-width: 75%; padding: 10px 15px; border-radius: 15px; font-size: 14px; }
+        .my-msg { background-color: #dcf8c6; align-self: flex-end; border-bottom-right-radius: 0; }
+        .other-msg { background-color: white; align-self: flex-start; border-bottom-left-radius: 0; }
+        .sender-name { font-size: 11px; color: #1da1f2; margin-bottom: 3px; font-weight: bold; }
+        .msg-time { font-size: 10px; color: #999; margin-top: 5px; text-align: left; }
+        .input-area { background: white; padding: 10px; display: flex; align-items: center; gap: 10px; border-top: 1px solid #ccc; }
+        .input-area input { flex-grow: 1; padding: 12px; border: 1px solid #ddd; border-radius: 20px; outline: none; font-family: 'Tahoma'; }
+        .input-area button { background: #5b9bd5; color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; font-size: 20px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <a href="/home">&#8592;</a>
+        <h2 style="margin:0; font-size:18px;">🎧 پشتیبانی آوا ✔️</h2>
+        <div style="width: 24px;"></div>
+    </div>
+
+    <div class="chat-box" id="chatBox">
+        {% for msg in messages %}
+            <div class="message {{ 'my-msg' if msg['sender_email'] == user_email else 'other-msg' }}">
+                {% if msg['sender_email'] != user_email %}
+                <div class="sender-name">پشتیبانی آوا ✔️</div>
+                {% endif %}
+                <div>{{ msg['message'] }}</div>
+                <div class="msg-time">{{ msg['timestamp'][11:16] }}</div>
+            </div>
+        {% endfor %}
+    </div>
+
+    <form method="POST" class="input-area">
+        <input type="text" name="message" placeholder="پیام به پشتیبانی..." required autocomplete="off">
+        <button type="submit">&#10148;</button>
+    </form>
+
+    <script>
+        document.getElementById("chatBox").scrollTop = document.getElementById("chatBox").scrollHeight;
+    </script>
+</body>
+  </html>
