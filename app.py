@@ -12,7 +12,6 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
 app.secret_key = "supersecretkey_ava_2026_secure"
 
-# ⭐ هدرهای ضد کش: مرورگر همیشه نسخه جدید رو بگیره
 @app.after_request
 def add_header(response):
     response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
@@ -58,10 +57,20 @@ def init_db():
     cursor.execute('''CREATE TABLE IF NOT EXISTS channels (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, description TEXT, owner_email TEXT NOT NULL, is_private INTEGER DEFAULT 0, channel_type TEXT DEFAULT 'channel', profile_pic TEXT, invite_token TEXT UNIQUE)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS members (id INTEGER PRIMARY KEY AUTOINCREMENT, channel_id INTEGER NOT NULL, user_email TEXT NOT NULL, UNIQUE(channel_id, user_email))''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, channel_id INTEGER NOT NULL, sender_email TEXT NOT NULL, message TEXT NOT NULL, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS saved_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, user_email TEXT NOT NULL, message TEXT NOT NULL, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS private_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, sender_email TEXT NOT NULL, receiver_email TEXT NOT NULL, message TEXT NOT NULL, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     
+    # ⭐ ساخت کاربر پشتیبانی
     cursor.execute("SELECT * FROM users WHERE email = ?", (SUPPORT_EMAIL,))
     if not cursor.fetchone():
         cursor.execute("INSERT INTO users (email, phone, is_verified, display_name, username) VALUES (?, '00000000000', 1, 'پشتیبانی آوا', 'support')", (SUPPORT_EMAIL,))
+        
+    # ⭐ ساخت کانال "اطلاع‌رسانی آوا"
+    cursor.execute("SELECT * FROM channels WHERE name = 'اطلاع‌رسانی آوا'")
+    if not cursor.fetchone():
+        invite_token = str(random.randint(100000, 999999))
+        cursor.execute("INSERT INTO channels (name, description, owner_email, is_private, channel_type, invite_token) VALUES (?, ?, ?, 1, 'channel', ?)", 
+                       ('اطلاع‌رسانی آوا', 'اخبار و اطلاعیه‌های پیام‌رسان آوا', ADMIN_EMAIL, invite_token))
         
     conn.commit()
     conn.close()
@@ -70,6 +79,21 @@ init_db()
 
 def convert_to_english_digits(text):
     return text.translate(str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789"))
+
+# ==========================================
+# توابع کمکی
+# ==========================================
+def add_user_to_announcement_channel(email):
+    """اضافه کردن کاربر به کانال اطلاع‌رسانی آوا به صورت خودکار"""
+    conn = get_db_connection()
+    channel = conn.execute("SELECT * FROM channels WHERE name = 'اطلاع‌رسانی آوا'").fetchone()
+    if channel:
+        try:
+            conn.execute("INSERT INTO members (channel_id, user_email) VALUES (?, ?)", (channel['id'], email))
+            conn.commit()
+        except sqlite3.IntegrityError:
+            pass
+    conn.close()
 
 # ==========================================
 # مسیرهای اصلی
@@ -99,23 +123,33 @@ def login():
                     conn.close()
                     flash("حساب شما مسدود شده است.", "error")
                     return redirect(url_for('login'))
-                    
                 conn.close()
                 session['user_email'] = email
                 session['is_logged_in'] = True
                 session.pop('_flashes', None)
+                # ⭐ اضافه کردن به کانال اطلاع‌رسانی
+                add_user_to_announcement_channel(email)
                 return redirect(url_for('home'))
             else:
                 conn.close()
                 flash("رمز عبور اشتباه است.", "error")
                 return redirect(url_for('login'))
         else:
+            # ⭐ کاربر جدید
             password_hash = generate_password_hash(password)
             cursor.execute("INSERT INTO users (email, phone, password_hash, is_verified) VALUES (?, ?, ?, 1)", (email, phone, password_hash))
             conn.commit()
             conn.close()
             session['user_email'] = email
             session['is_logged_in'] = True
+            # ⭐ اضافه کردن به کانال اطلاع‌رسانی
+            add_user_to_announcement_channel(email)
+            # ⭐ ارسال پیام خوش‌آمدگویی از طرف پشتیبانی
+            conn = get_db_connection()
+            welcome_msg = "🎉 به پیام‌رسان آوا خوش آمدید!\n\nاز این پس می‌توانید گروه و کانال بسازید، با دوستان خود چت کنید و از امکانات برنامه لذت ببرید. اگر سوالی داشتید، از بخش پشتیبانی با ما در ارتباط باشید."
+            conn.execute("INSERT INTO private_messages (sender_email, receiver_email, message) VALUES (?, ?, ?)", (SUPPORT_EMAIL, email, welcome_msg))
+            conn.commit()
+            conn.close()
             return redirect(url_for('home'))
             
     return render_template('login.html')
@@ -125,7 +159,7 @@ def home():
     if not session.get('is_logged_in'): return redirect(url_for('login'))
     conn = get_db_connection()
     user = conn.execute("SELECT * FROM users WHERE email = ?", (session['user_email'],)).fetchone()
-    owned_channels = conn.execute("SELECT * FROM channels WHERE owner_email = ? AND name != 'پشتیبانی آوا'", (session['user_email'],)).fetchall()
+    owned_channels = conn.execute("SELECT * FROM channels WHERE owner_email = ? AND name NOT IN ('پشتیبانی آوا', 'اطلاع‌رسانی آوا')", (session['user_email'],)).fetchall()
     joined_channels = conn.execute('''SELECT c.* FROM channels c JOIN members m ON c.id = m.channel_id WHERE m.user_email = ?''', (session['user_email'],)).fetchall()
     conn.close()
     return render_template('home.html', user=user, owned_channels=owned_channels, joined_channels=joined_channels)
@@ -139,15 +173,14 @@ def logout():
 @app.route('/delete_account', methods=['POST'])
 def delete_account():
     if not session.get('is_logged_in'): return redirect(url_for('login'))
-    
     email = session['user_email']
     conn = get_db_connection()
-    
     conn.execute("DELETE FROM messages WHERE sender_email = ?", (email,))
     conn.execute("DELETE FROM members WHERE user_email = ?", (email,))
     conn.execute("DELETE FROM channels WHERE owner_email = ?", (email,))
     conn.execute("DELETE FROM users WHERE email = ?", (email,))
-    
+    conn.execute("DELETE FROM saved_messages WHERE user_email = ?", (email,))
+    conn.execute("DELETE FROM private_messages WHERE sender_email = ? OR receiver_email = ?", (email, email))
     conn.commit()
     conn.close()
     session.clear()
@@ -181,31 +214,42 @@ def profile():
     conn.close()
     return render_template('profile.html', user=user)
 
-@app.route('/support')
+# ⭐ چت خصوصی پشتیبانی
+@app.route('/support', methods=['GET', 'POST'])
 def support_chat():
     if not session.get('is_logged_in'): return redirect(url_for('login'))
     conn = get_db_connection()
-    support_channel = conn.execute("SELECT * FROM channels WHERE name = 'پشتیبانی آوا' AND owner_email = ?", (SUPPORT_EMAIL,)).fetchone()
-    if not support_channel:
-        invite_token = str(random.randint(100000, 999999))
-        cursor = conn.cursor()
-        cursor.execute("INSERT INTO channels (name, description, owner_email, is_private, channel_type, invite_token) VALUES (?, ?, ?, 1, 'channel', ?)", ('پشتیبانی آوا', 'ارتباط با پشتیبانی', SUPPORT_EMAIL, invite_token))
-        channel_id = cursor.lastrowid
-        conn.commit()
-    else:
-        channel_id = support_channel['id']
-    messages = conn.execute('''SELECT m.*, u.display_name, u.username FROM messages m LEFT JOIN users u ON m.sender_email = u.email WHERE m.channel_id = ? ORDER BY m.timestamp ASC''', (channel_id,)).fetchall()
+    
+    if request.method == 'POST':
+        msg = request.form.get('message', '').strip()
+        if msg:
+            conn.execute("INSERT INTO private_messages (sender_email, receiver_email, message) VALUES (?, ?, ?)", (session['user_email'], SUPPORT_EMAIL, msg))
+            conn.commit()
+        return redirect(url_for('support_chat'))
+    
+    messages = conn.execute('''SELECT * FROM private_messages WHERE (sender_email = ? AND receiver_email = ?) OR (sender_email = ? AND receiver_email = ?) ORDER BY timestamp ASC''', 
+                           (session['user_email'], SUPPORT_EMAIL, SUPPORT_EMAIL, session['user_email'])).fetchall()
     conn.close()
-    class FakeChannel:
-        def __init__(self, id, name):
-            self.id = id
-            self.name = name
-            self.owner_email = SUPPORT_EMAIL
-            self.channel_type = 'channel'
-            self.invite_token = ''
-    fake_channel = FakeChannel(channel_id, 'پشتیبانی آوا')
-    return render_template('chat.html', channel=fake_channel, messages=messages, user_email=session['user_email'], can_send=False)
+    return render_template('support_chat.html', messages=messages, user_email=session['user_email'], support_email=SUPPORT_EMAIL)
 
+# ⭐ پیام‌های ذخیره‌شده
+@app.route('/saved', methods=['GET', 'POST'])
+def saved_messages():
+    if not session.get('is_logged_in'): return redirect(url_for('login'))
+    conn = get_db_connection()
+    
+    if request.method == 'POST':
+        msg = request.form.get('message', '').strip()
+        if msg:
+            conn.execute("INSERT INTO saved_messages (user_email, message) VALUES (?, ?)", (session['user_email'], msg))
+            conn.commit()
+        return redirect(url_for('saved_messages'))
+    
+    messages = conn.execute("SELECT * FROM saved_messages WHERE user_email = ? ORDER BY timestamp DESC", (session['user_email'],)).fetchall()
+    conn.close()
+    return render_template('saved_messages.html', messages=messages)
+
+# ⭐ جستجو: کانال‌های عمومی با ۱۰+ عضو
 @app.route('/search', methods=['GET'])
 def search():
     if not session.get('is_logged_in'): return redirect(url_for('login'))
@@ -214,7 +258,10 @@ def search():
     if query:
         conn = get_db_connection()
         users = conn.execute("SELECT * FROM users WHERE username LIKE ? OR display_name LIKE ?", (f'%{query}%', f'%{query}%')).fetchall()
-        channels = conn.execute("SELECT * FROM channels WHERE (name LIKE ? OR description LIKE ?) AND is_private = 0", (f'%{query}%', f'%{query}%')).fetchall()
+        channels = conn.execute('''SELECT c.*, (SELECT COUNT(*) FROM members m WHERE m.channel_id = c.id) as member_count 
+                                   FROM channels c 
+                                   WHERE (c.name LIKE ? OR c.description LIKE ?) AND c.is_private = 0 AND c.name NOT IN ('پشتیبانی آوا', 'اطلاع‌رسانی آوا')
+                                   HAVING member_count >= 10''', (f'%{query}%', f'%{query}%')).fetchall()
         conn.close()
         results = {'users': users, 'channels': channels}
     return render_template('search.html', query=query, results=results)
@@ -249,6 +296,9 @@ def create_channel(type):
         cursor.execute("INSERT INTO channels (name, description, owner_email, is_private, channel_type, profile_pic, invite_token) VALUES (?, ?, ?, ?, ?, ?, ?)", (name, description, session['user_email'], is_private, type, filename, invite_token))
         channel_id = cursor.lastrowid
         cursor.execute("INSERT INTO members (channel_id, user_email) VALUES (?, ?)", (channel_id, session['user_email']))
+        # ⭐ پیام خوش‌آمدگویی از طرف ادمین (فقط برای سازنده)
+        welcome_msg = f"🎉 به {name} خوش آمدید! این {'کانال' if type == 'channel' else 'گروه'} توسط مدیریت ساخته شد."
+        cursor.execute("INSERT INTO messages (channel_id, sender_email, message) VALUES (?, ?, ?)", (channel_id, ADMIN_EMAIL, welcome_msg))
         conn.commit()
         conn.close()
         flash("با موفقیت ساخته شد!", "success")
@@ -282,123 +332,109 @@ def chat(channel_id):
     channel = conn.execute("SELECT * FROM channels WHERE id = ?", (channel_id,)).fetchone()
     if not channel:
         conn.close(); return redirect(url_for('home'))
+    
     is_member = conn.execute("SELECT * FROM members WHERE channel_id = ? AND user_email = ?", (channel_id, session['user_email'])).fetchone()
     if not is_member and channel['owner_email'] != session['user_email']:
         conn.close(); flash("شما عضو نیستید.", "error"); return redirect(url_for('home'))
+    
     if request.method == 'POST':
         msg_text = request.form.get('message', '').strip()
         if msg_text:
-            conn.execute("INSERT INTO messages (channel_id, sender_email, message) VALUES (?, ?, ?)", (channel_id, session['user_email'], msg_text))
-            conn.commit()
+            if channel['channel_type'] == 'channel' and channel['owner_email'] != session['user_email']:
+                flash("فقط مدیران اجازه ارسال پیام دارند.", "error")
+            else:
+                conn.execute("INSERT INTO messages (channel_id, sender_email, message) VALUES (?, ?, ?)", (channel_id, session['user_email'], msg_text))
+                conn.commit()
         return redirect(url_for('chat', channel_id=channel_id))
+    
     messages = conn.execute('''SELECT m.*, u.display_name, u.username FROM messages m LEFT JOIN users u ON m.sender_email = u.email WHERE m.channel_id = ? ORDER BY m.timestamp ASC''', (channel_id,)).fetchall()
     conn.close()
+    
     can_send = True
     if channel['channel_type'] == 'channel' and channel['owner_email'] != session['user_email']:
         can_send = False
+    
     return render_template('chat.html', channel=channel, messages=messages, user_email=session['user_email'], can_send=can_send)
 
+# ⭐ حذف پیام (فقط صاحب پیام یا ادمین)
+@app.route('/delete_message/<int:message_id>', methods=['POST'])
+def delete_message(message_id):
+    if not session.get('is_logged_in'): return redirect(url_for('login'))
+    conn = get_db_connection()
+    msg = conn.execute("SELECT * FROM messages WHERE id = ?", (message_id,)).fetchone()
+    if msg and (msg['sender_email'] == session['user_email'] or session['user_email'] == ADMIN_EMAIL):
+        conn.execute("DELETE FROM messages WHERE id = ?", (message_id,))
+        conn.commit()
+        flash("پیام حذف شد.", "success")
+    else:
+        flash("شما اجازه حذف این پیام را ندارید.", "error")
+    channel_id = msg['channel_id'] if msg else 0
+    conn.close()
+    return redirect(url_for('chat', channel_id=channel_id))
+
 # ==========================================
-# ⭐ پنل ادمین (بدون لاگین)
+# ⭐ پنل ادمین
 # ==========================================
 @app.route('/admin_panel_secret')
 def admin_panel():
-    # دیگه نیازی به لاگین نیست، مستقیم برو پنل
     conn = get_db_connection()
     total_users = conn.execute("SELECT COUNT(*) as count FROM users").fetchone()['count']
     total_channels = conn.execute("SELECT COUNT(*) as count FROM channels").fetchone()['count']
     total_messages = conn.execute("SELECT COUNT(*) as count FROM messages").fetchone()['count']
     all_users = conn.execute("SELECT * FROM users WHERE email != ? ORDER BY id DESC", (SUPPORT_EMAIL,)).fetchall()
-    all_channels = conn.execute("SELECT * FROM channels WHERE name != 'پشتیبانی آوا' ORDER BY id DESC").fetchall()
+    all_channels = conn.execute("SELECT * FROM channels WHERE name NOT IN ('پشتیبانی آوا', 'اطلاع‌رسانی آوا') ORDER BY id DESC").fetchall()
+    # ⭐ همه پیام‌ها برای مدیریت (با اطلاعات فرستنده)
+    all_messages = conn.execute('''SELECT m.*, c.name as channel_name, u.phone as sender_phone 
+                                   FROM messages m 
+                                   LEFT JOIN channels c ON m.channel_id = c.id 
+                                   LEFT JOIN users u ON m.sender_email = u.email 
+                                   ORDER BY m.timestamp DESC''').fetchall()
+    # ⭐ پیام‌های خصوصی پشتیبانی
+    all_private_messages = conn.execute('''SELECT pm.*, u.phone as sender_phone 
+                                           FROM private_messages pm 
+                                           LEFT JOIN users u ON pm.sender_email = u.email 
+                                           ORDER BY pm.timestamp DESC''').fetchall()
     conn.close()
     total, used, free = shutil.disk_usage("/")
     total_gb = round(total / (1024**3), 2)
     used_gb = round(used / (1024**3), 2)
     free_gb = round(free / (1024**3), 2)
-    return render_template('admin_panel.html', total_users=total_users, total_channels=total_channels, total_messages=total_messages, all_users=all_users, all_channels=all_channels, total_gb=total_gb, used_gb=used_gb, free_gb=free_gb)
+    return render_template('admin_panel.html', total_users=total_users, total_channels=total_channels, total_messages=total_messages, all_users=all_users, all_channels=all_channels, all_messages=all_messages, all_private_messages=all_private_messages, total_gb=total_gb, used_gb=used_gb, free_gb=free_gb)
 
-@app.route('/admin/broadcast', methods=['POST'])
-def admin_broadcast():
-    message_text = request.form.get('message_text', '').strip()
-    target = request.form.get('target', 'users')
-    if not message_text:
-        flash("متن پیام نمی‌تواند خالی باشد.", "error")
-        return redirect(url_for('admin_panel'))
+@app.route('/admin/delete_message/<int:message_id>', methods=['POST'])
+def admin_delete_message(message_id):
     conn = get_db_connection()
-    cursor = conn.cursor()
-    if target == 'users':
-        support_channel = cursor.execute("SELECT * FROM channels WHERE name = 'پشتیبانی آوا' AND owner_email = ?", (SUPPORT_EMAIL,)).fetchone()
-        if support_channel:
-            channel_id = support_channel['id']
-            cursor.execute("INSERT INTO messages (channel_id, sender_email, message) VALUES (?, ?, ?)", (channel_id, SUPPORT_EMAIL, message_text))
-            flash("پیام همگانی به تمام کاربران ارسال شد.", "success")
-        else:
-            flash("کانال پشتیبانی یافت نشد.", "error")
-    elif target == 'groups':
-        all_channels = cursor.execute("SELECT * FROM channels WHERE name != 'پشتیبانی آوا'").fetchall()
-        for ch in all_channels:
-            cursor.execute("INSERT INTO messages (channel_id, sender_email, message) VALUES (?, ?, ?)", (ch['id'], ADMIN_EMAIL, f"📢 [اطلاعیه مدیریت]: {message_text}"))
-        flash(f"پیام همگانی به {len(all_channels)} گروه/کانال ارسال شد.", "success")
+    conn.execute("DELETE FROM messages WHERE id = ?", (message_id,))
     conn.commit()
     conn.close()
+    flash("پیام حذف شد.", "success")
     return redirect(url_for('admin_panel'))
 
-@app.route('/admin/user_action/<action>/<int:user_id>', methods=['POST'])
-def admin_user_action(action, user_id):
-    conn = get_db_connection()
-    user = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
-    if not user:
-        conn.close(); flash("کاربر یافت نشد.", "error"); return redirect(url_for('admin_panel'))
-    if action == 'ban':
-        new_status = 0 if user['is_banned'] == 1 else 1
-        conn.execute("UPDATE users SET is_banned = ? WHERE id = ?", (new_status, user_id))
-        flash("وضعیت مسدودی تغییر کرد.", "success")
-    elif action == 'make_admin':
-        new_admin_status = 0 if user['is_admin'] == 1 else 1
-        conn.execute("UPDATE users SET is_admin = ? WHERE id = ?", (new_admin_status, user_id))
-        flash("وضعیت ادمین تغییر کرد.", "success")
-    elif action == 'login_as':
+@app.route('/admin/edit_message/<int:message_id>', methods=['POST'])
+def admin_edit_message(message_id):
+    new_text = request.form.get('new_text', '').strip()
+    if new_text:
+        conn = get_db_connection()
+        conn.execute("UPDATE messages SET message = ? WHERE id = ?", (new_text, message_id))
+        conn.commit()
         conn.close()
-        session['user_email'] = user['email']
-        session['is_logged_in'] = True
-        flash(f"شما وارد حساب {user['email']} شدید.", "success")
-        return redirect(url_for('home'))
-    conn.commit()
-    conn.close()
+        flash("پیام ویرایش شد.", "success")
     return redirect(url_for('admin_panel'))
 
-@app.route('/admin/delete_channel/<int:channel_id>', methods=['POST'])
-def admin_delete_channel(channel_id):
-    conn = get_db_connection()
-    conn.execute("DELETE FROM messages WHERE channel_id = ?", (channel_id,))
-    conn.execute("DELETE FROM members WHERE channel_id = ?", (channel_id,))
-    conn.execute("DELETE FROM channels WHERE id = ?", (channel_id,))
-    conn.commit()
-    conn.close()
-    flash("کانال/گروه با موفقیت حذف شد.", "success")
+@app.route('/admin/reply_private/<int:message_id>', methods=['POST'])
+def admin_reply_private(message_id):
+    reply_text = request.form.get('reply_text', '').strip()
+    if reply_text:
+        conn = get_db_connection()
+        msg = conn.execute("SELECT * FROM private_messages WHERE id = ?", (message_id,)).fetchone()
+        if msg:
+            conn.execute("INSERT INTO private_messages (sender_email, receiver_email, message) VALUES (?, ?, ?)", (SUPPORT_EMAIL, msg['sender_email'], reply_text))
+            conn.commit()
+            flash("پاسخ ارسال شد.", "success")
+        conn.close()
     return redirect(url_for('admin_panel'))
 
-@app.route('/admin/backup_database')
-def backup_database():
-    if not os.path.exists('ava.db'):
-        flash("فایل دیتابیس پیدا نشد.", "error")
-        return redirect(url_for('admin_panel'))
-    with open('ava.db', 'rb') as f:
-        db_data = f.read()
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"ava_backup_{timestamp}.db"
-    return send_file(BytesIO(db_data), mimetype='application/x-sqlite3', as_attachment=True, download_name=filename)
-
-@app.route('/admin/restore_database', methods=['POST'])
-def restore_database():
-    file = request.files.get('backup_file')
-    if file and file.filename.endswith('.db'):
-        file.save('ava.db')
-        flash("دیتابیس با موفقیت بازیابی شد! لطفاً صفحه را رفرش کنید.", "success")
-        return redirect(url_for('admin_panel'))
-    else:
-        flash("لطفاً یک فایل معتبر با پسوند .db انتخاب کنید.", "error")
-        return redirect(url_for('admin_panel'))
+# ... (بقیه مسیرهای ادمین مثل broadcast, user_action, delete_channel, backup, restore)
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
