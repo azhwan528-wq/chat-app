@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>پیام‌های ذخیره‌شده</title>
+    <style>
+        body { font-family: 'Tahoma', sans-serif; background-color: #f0f2f5; margin: 0; }
+        .header { background-color: #5b9bd5; color: white; padding: 15px; display: flex; align-items: center; }
+        .header a { color: white; text-decoration: none; font-size: 24px; margin-left: 15px; }
+        .container { padding: 15px; }
+        .message-item { background: white; padding: 15px; margin-bottom: 10px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .msg-time { font-size: 11px; color: #999; margin-top: 5px; }
+        .input-box { background: white; padding: 15px; border-radius: 10px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: flex; gap: 10px; }
+        .input-box input { flex-grow: 1; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-family: 'Tahoma'; outline: none; }
+        .input-box button { background: #5b9bd5; color: white; border: none; padding: 0 20px; border-radius: 8px; cursor: pointer; font-family: 'Tahoma'; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <a href="/home">&#8592;</a>
+        <h1>💾 پیام‌های من</h1>
+    </div>
+    <div class="container">
+        <form method="POST" class="input-box">
+            <input type="text" name="message" placeholder="پیام جدید را ذخیره کنید..." required>
+            <button type="submit">ذخیره</button>
+        </form>
+        
+        {% for msg in messages %}
+        <div class="message-item">
+            <div>{{ msg['message'] }}</div>
+            <div class="msg-time">{{ msg['timestamp'] }}</div>
+        </div>
+        {% else %}
+        <p style="text-align: center; color: #999;">هنوز پیامی ذخیره نکرده‌اید.</p>
+        {% endfor %}
+    </div>
+</body>
+</html>
