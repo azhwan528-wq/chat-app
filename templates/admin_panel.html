@@ -20,7 +20,7 @@
         .stat-card p { margin: 5px 0 0; color: #777; font-size: 12px; }
         .section { background: white; padding: 15px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
         .section h3 { margin-top: 0; color: #333; border-bottom: 2px solid #5b9bd5; padding-bottom: 10px; font-size: 16px; }
-        .user-card, .channel-card { border: 1px solid #eee; border-radius: 8px; padding: 12px; margin-bottom: 10px; background: #fafafa; }
+        .user-card, .channel-card, .msg-card { border: 1px solid #eee; border-radius: 8px; padding: 12px; margin-bottom: 10px; background: #fafafa; }
         .user-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 5px; }
         .user-card-email { font-weight: bold; color: #333; font-size: 14px; word-break: break-all; }
         .user-card-info { font-size: 12px; color: #666; margin-bottom: 10px; }
@@ -29,6 +29,7 @@
         .badge-admin { background: #d4edda; color: #155724; }
         .badge-user { background: #e2e3e5; color: #383d41; }
         .badge-banned { background: #f8d7da; color: #721c24; }
+        .badge-suspended { background: #fff3cd; color: #856404; }
         .action-buttons { display: flex; gap: 5px; flex-wrap: wrap; }
         .action-btn { padding: 6px 10px; border-radius: 5px; border: none; cursor: pointer; font-size: 11px; font-family: 'Tahoma'; color: white; flex-grow: 1; }
         .btn-ban { background: #dc3545; }
@@ -38,11 +39,13 @@
         .btn-login { background: #ffc107; color: #333; }
         .btn-pass { background: #6f42c1; }
         .btn-delete { background: #e74c3c; }
-        .channel-info { font-size: 12px; color: #777; margin-top: 3px; }
+        .btn-suspend { background: #ff9800; }
+        .btn-unsuspend { background: #8bc34a; }
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000; }
         .modal-content { background: white; padding: 20px; border-radius: 10px; width: 90%; max-width: 350px; }
-        .modal-content input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ccc; border-radius: 8px; font-family: 'Tahoma'; box-sizing: border-box; }
+        .modal-content input, .modal-content select, .modal-content textarea { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ccc; border-radius: 8px; font-family: 'Tahoma'; box-sizing: border-box; }
         .modal-content button { width: 100%; padding: 12px; background: #5b9bd5; color: white; border: none; border-radius: 8px; cursor: pointer; font-family: 'Tahoma'; margin-top: 5px; }
+        .alert { margin: 15px; padding: 10px; border-radius: 5px; background-color: #d4edda; color: #155724; }
     </style>
 </head>
 <body>
@@ -56,6 +59,10 @@
             </div>
         </div>
 
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}{% for message in messages %}<div class="alert">{{ message }}</div>{% endfor %}{% endif %}
+        {% endwith %}
+
         <div class="stats-grid">
             <div class="stat-card"><h2>{{ total_users }}</h2><p>کاربران</p></div>
             <div class="stat-card"><h2>{{ total_channels }}</h2><p>کانال/گروه</p></div>
@@ -66,20 +73,22 @@
             </div>
         </div>
 
+        <!-- ⭐ بخش جدید: ارسال پیام هدفمند -->
         <div class="section">
-            <h3>ارسال پیام همگانی</h3>
-            <form action="/admin/broadcast" method="POST">
-                <textarea name="message_text" placeholder="متن پیام خود را وارد کنید..." required style="width:100%; padding:10px; border-radius:8px; border:1px solid #ddd; font-family:'Tahoma'; margin-bottom:10px; resize:vertical; min-height:80px;"></textarea>
-                <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                    <select name="target" style="padding:10px; border-radius:8px; border:1px solid #ddd; font-family:'Tahoma'; flex:1;">
-                        <option value="users">ارسال به تمام کاربران (از طرف پشتیبانی)</option>
-                        <option value="groups">ارسال به تمام گروه‌ها و کانال‌ها (اطلاعیه مدیریت)</option>
-                    </select>
-                    <button type="submit" style="background:#5b9bd5; color:white; border:none; padding:10px 20px; border-radius:8px; cursor:pointer; font-family:'Tahoma';">ارسال</button>
-                </div>
+            <h3>📤 ارسال پیام هدفمند</h3>
+            <form action="/admin/target_message" method="POST">
+                <input type="text" name="user_input" placeholder="آیدی یا شماره کاربر را وارد کنید..." required style="width:100%; padding:10px; border-radius:8px; border:1px solid #ddd; font-family:'Tahoma'; margin-bottom:10px;">
+                <select name="message_type" style="width:100%; padding:10px; border-radius:8px; border:1px solid #ddd; font-family:'Tahoma'; margin-bottom:10px;">
+                    <option value="support">ارسال پیام از طرف پشتیبانی</option>
+                    <option value="group_link">ارسال لینک گروه</option>
+                    <option value="channel_link">ارسال لینک کانال</option>
+                </select>
+                <textarea name="message_text" placeholder="متن پیام (برای پشتیبانی)..." style="width:100%; padding:10px; border-radius:8px; border:1px solid #ddd; font-family:'Tahoma'; min-height:80px; margin-bottom:10px;"></textarea>
+                <button type="submit" style="background:#5b9bd5; color:white; border:none; padding:10px 20px; border-radius:8px; cursor:pointer; font-family:'Tahoma';">ارسال</button>
             </form>
         </div>
 
+        <!-- مدیریت کاربران -->
         <div class="section">
             <h3>مدیریت کاربران</h3>
             {% if all_users %}
@@ -89,7 +98,7 @@
                         <div class="user-card-email">{{ u['email'] }}</div>
                         <div class="badges">
                             {% if u['is_admin'] == 1 %}<span class="badge badge-admin">ادمین</span>{% endif %}
-                            {% if u['is_banned'] == 1 %}<span class="badge badge-banned">مسدود</span>{% endif %}
+                            {% if u['is_banned'] == 1 %}<span class="badge badge-banned">مسدود{% if u['ban_until'] %} تا {{ u['ban_until'] }}{% endif %}</span>{% endif %}
                             {% if u['is_admin'] == 0 and u['is_banned'] == 0 %}<span class="badge badge-user">کاربر</span>{% endif %}
                         </div>
                     </div>
@@ -98,11 +107,13 @@
                         👤 {{ u['display_name'] or 'بدون نام' }} - @{{ u['username'] or 'بدون آیدی' }}
                     </div>
                     <div class="action-buttons">
-                        <form action="/admin/user_action/ban/{{ u['id'] }}" method="POST" style="margin:0; flex:1;">
-                            <button type="submit" class="action-btn {{ 'btn-unban' if u['is_banned'] == 1 else 'btn-ban' }}" style="width:100%;">
-                                {{ 'آنبن' if u['is_banned'] == 1 else 'بن' }}
-                            </button>
+                        {% if u['is_banned'] == 1 %}
+                        <form action="/admin/unban_user/{{ u['id'] }}" method="POST" style="margin:0; flex:1;">
+                            <button type="submit" class="action-btn btn-unban" style="width:100%;">آنبن</button>
                         </form>
+                        {% else %}
+                        <button class="action-btn btn-ban" onclick="openBanModal({{ u['id'] }})" style="flex:1;">بن</button>
+                        {% endif %}
                         <form action="/admin/user_action/make_admin/{{ u['id'] }}" method="POST" style="margin:0; flex:1;">
                             <button type="submit" class="action-btn {{ 'btn-remove-admin' if u['is_admin'] == 1 else 'btn-admin' }}" style="width:100%;">
                                 {{ 'حذف ادمین' if u['is_admin'] == 1 else 'ادمین' }}
@@ -111,7 +122,6 @@
                         <form action="/admin/user_action/login_as/{{ u['id'] }}" method="POST" style="margin:0; flex:1;">
                             <button type="submit" class="action-btn btn-login" style="width:100%;">ورود</button>
                         </form>
-                        <button class="action-btn btn-pass" onclick="openPassModal({{ u['id'] }})" style="flex:1;">رمز</button>
                     </div>
                 </div>
                 {% endfor %}
@@ -120,6 +130,7 @@
             {% endif %}
         </div>
 
+        <!-- مدیریت کانال‌ها و گروه‌ها -->
         <div class="section">
             <h3>مدیریت کانال‌ها و گروه‌ها</h3>
             {% if all_channels %}
@@ -128,11 +139,21 @@
                     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:5px;">
                         <div>
                             <div style="font-weight:bold; font-size:14px;">{{ ch['name'] }} ({{ 'گروه' if ch['channel_type'] == 'group' else 'کانال' }})</div>
-                            <div class="channel-info">مالک: {{ ch['owner_email'] }} | {{ 'خصوصی' if ch['is_private'] else 'عمومی' }}</div>
+                            <div style="font-size:12px; color:#777;">مالک: {{ ch['owner_email'] }} | {{ 'خصوصی' if ch['is_private'] else 'عمومی' }}</div>
+                            {% if ch['is_suspended'] == 1 %}<span class="badge badge-suspended">تعلیق تا {{ ch['suspended_until'] }}</span>{% endif %}
                         </div>
-                        <form action="/admin/delete_channel/{{ ch['id'] }}" method="POST" style="margin:0;" onsubmit="return confirm('آیا از حذف مطمئن هستید؟');">
-                            <button type="submit" class="action-btn btn-delete" style="width:auto; padding:8px 15px;">حذف</button>
-                        </form>
+                        <div class="action-buttons" style="flex-wrap:nowrap;">
+                            {% if ch['is_suspended'] == 1 %}
+                            <form action="/admin/unsuspend_channel/{{ ch['id'] }}" method="POST" style="margin:0;">
+                                <button type="submit" class="action-btn btn-unsuspend" style="padding:8px 12px;">رفع تعلیق</button>
+                            </form>
+                            {% else %}
+                            <button class="action-btn btn-suspend" onclick="openSuspendModal({{ ch['id'] }})" style="padding:8px 12px;">تعلیق</button>
+                            {% endif %}
+                            <form action="/admin/delete_channel/{{ ch['id'] }}" method="POST" style="margin:0;" onsubmit="return confirm('آیا مطمئنید؟');">
+                                <button type="submit" class="action-btn btn-delete" style="padding:8px 12px;">حذف</button>
+                            </form>
+                        </div>
                     </div>
                 </div>
                 {% endfor %}
@@ -140,23 +161,91 @@
                 <p style="text-align:center; color:#999;">هیچ کانال یا گروهی یافت نشد.</p>
             {% endif %}
         </div>
-    </div>
 
-    <div id="passModal" class="modal">
-        <div class="modal-content">
-            <h3 style="margin-top:0;">تنظیم رمز اختصاصی</h3>
-            <form id="passForm" method="POST">
-                <input type="password" name="new_password" placeholder="رمز جدید" required>
-                <button type="submit">ذخیره</button>
-            </form>
-            <button onclick="closePassModal()" style="background:#ccc; color:#333;">انصراف</button>
+        <!-- مدیریت پیام‌ها -->
+        <div class="section">
+            <h3>مدیریت پیام‌ها</h3>
+            {% if all_messages %}
+                {% for msg in all_messages %}
+                <div class="msg-card">
+                    <div class="user-card-header">
+                        <div class="user-card-email">📨 {{ msg['channel_name'] }} - از: {{ msg['sender_email'] }}</div>
+                        <div class="badges">📞 {{ msg['sender_phone'] or '-' }}</div>
+                    </div>
+                    <div class="user-card-info">
+                        <strong>متن:</strong> {{ msg['message'] }}<br>
+                        <small>{{ msg['timestamp'] }}</small>
+                    </div>
+                    <div class="action-buttons">
+                        <form action="/admin/delete_message/{{ msg['id'] }}" method="POST" style="margin:0; flex:1;" onsubmit="return confirm('آیا مطمئنید؟');">
+                            <button type="submit" class="action-btn btn-ban" style="width:100%;">حذف</button>
+                        </form>
+                        <button class="action-btn btn-admin" onclick="document.getElementById('edit-msg-{{ msg['id'] }}').style.display='block'" style="flex:1;">ویرایش</button>
+                    </div>
+                    <div id="edit-msg-{{ msg['id'] }}" style="display: none; margin-top: 10px;">
+                        <form action="/admin/edit_message/{{ msg['id'] }}" method="POST">
+                            <input type="text" name="new_text" value="{{ msg['message'] }}" style="width: 100%; padding: 8px; margin-bottom: 5px; border: 1px solid #ccc; border-radius: 5px;">
+                            <button type="submit" style="background: #28a745; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer;">ذخیره</button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p style="text-align:center; color:#999;">هیچ پیامی یافت نشد.</p>
+            {% endif %}
+        </div>
+
+        <!-- پیام‌های خصوصی پشتیبانی -->
+        <div class="section">
+            <h3>پیام‌های پشتیبانی</h3>
+            {% if all_private_messages %}
+                {% for msg in all_private_messages %}
+                <div class="msg-card">
+                    <div class="user-card-header">
+                        <div class="user-card-email">از: {{ msg['sender_email'] }} (📞 {{ msg['sender_phone'] or '-' }})</div>
+                    </div>
+                    <div class="user-card-info">{{ msg['message'] }}<br><small>{{ msg['timestamp'] }}</small></div>
+                    <form action="/admin/reply_private/{{ msg['id'] }}" method="POST" style="display: flex; gap: 5px; margin-top: 10px;">
+                        <input type="text" name="reply_text" placeholder="پاسخ..." style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 5px;">
+                        <button type="submit" style="background: #5b9bd5; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer;">ارسال</button>
+                    </form>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p style="text-align:center; color:#999;">هیچ پیام خصوصی یافت نشد.</p>
+            {% endif %}
         </div>
     </div>
 
+    <!-- مودال بن کاربر -->
+    <div id="banModal" class="modal">
+        <div class="modal-content">
+            <h3 style="margin-top:0;">مسدود کردن کاربر</h3>
+            <form id="banForm" method="POST">
+                <input type="number" name="days" placeholder="مدت مسدودی (روز)" required>
+                <button type="submit">مسدود کن</button>
+            </form>
+            <button onclick="closeBanModal()" style="background:#ccc; color:#333;">انصراف</button>
+        </div>
+    </div>
+
+    <!-- مودال تعلیق کانال -->
+    <div id="suspendModal" class="modal">
+        <div class="modal-content">
+            <h3 style="margin-top:0;">تعلیق گروه/کانال</h3>
+            <form id="suspendForm" method="POST">
+                <input type="number" name="days" placeholder="مدت تعلیق (روز)" required>
+                <button type="submit">تعلیق کن</button>
+            </form>
+            <button onclick="closeSuspendModal()" style="background:#ccc; color:#333;">انصراف</button>
+        </div>
+    </div>
+
+    <!-- مودال بازیابی بکاپ -->
     <div id="restoreModal" class="modal">
         <div class="modal-content">
             <h3 style="margin-top:0;">بازیابی از بکاپ</h3>
-            <p style="color:#d32f2f; font-size:12px;">⚠️ هشدار: تمام اطلاعات فعلی پاک شده و اطلاعات فایل بکاپ جایگزین می‌شود!</p>
+            <p style="color:#d32f2f; font-size:12px;">⚠️ هشدار: تمام اطلاعات فعلی پاک می‌شود!</p>
             <form action="/admin/restore_database" method="POST" enctype="multipart/form-data">
                 <input type="file" name="backup_file" required>
                 <button type="submit" style="background:#ff9800;">بازیابی</button>
@@ -166,13 +255,20 @@
     </div>
 
     <script>
-        function openPassModal(userId) {
-            document.getElementById('passModal').style.display = 'flex';
-            document.getElementById('passForm').action = '/admin/user_action/set_password/' + userId;
+        function openBanModal(userId) {
+            document.getElementById('banModal').style.display = 'flex';
+            document.getElementById('banForm').action = '/admin/ban_user/' + userId;
         }
-        function closePassModal() { document.getElementById('passModal').style.display = 'none'; }
+        function closeBanModal() { document.getElementById('banModal').style.display = 'none'; }
+        
+        function openSuspendModal(channelId) {
+            document.getElementById('suspendModal').style.display = 'flex';
+            document.getElementById('suspendForm').action = '/admin/suspend_channel/' + channelId;
+        }
+        function closeSuspendModal() { document.getElementById('suspendModal').style.display = 'none'; }
+        
         function openRestoreModal() { document.getElementById('restoreModal').style.display = 'flex'; }
         function closeRestoreModal() { document.getElementById('restoreModal').style.display = 'none'; }
     </script>
 </body>
-                    </html>
+    </html>
