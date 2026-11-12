@@ -6,7 +6,7 @@
     <title>پیام‌رسان آوا | خانه</title>
     <style>
         body { font-family: 'Tahoma', sans-serif; background-color: #f0f2f5; margin: 0; padding: 0; }
-        .header { background-color: #5b9bd5; color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
+        .header { background-color: #5b9bd5; color: white; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
         .header h1 { margin: 0; font-size: 20px; }
         .header-links a { color: white; text-decoration: none; margin-right: 10px; background: rgba(255,255,255,0.2); padding: 5px 10px; border-radius: 5px; font-size: 12px; }
         .search-box { padding: 10px 15px; background: #5b9bd5; }
@@ -28,7 +28,8 @@
         .fab-menu a { background: white; color: #333; text-decoration: none; padding: 10px 15px; border-radius: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); font-size: 14px; text-align: center; }
         .fab { width: 60px; height: 60px; background-color: #5b9bd5; color: white; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 30px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); border: none; cursor: pointer; }
         .alert { margin: 15px; padding: 10px; border-radius: 5px; background-color: #d4edda; color: #155724; }
-        .support-card { background: white; margin: 15px; padding: 15px; border-radius: 10px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .btn-box { background: white; margin: 15px; padding: 15px; border-radius: 10px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: flex; gap: 10px; }
+        .btn-box a { text-decoration: none; color: #5b9bd5; font-weight: bold; flex: 1; padding: 10px; background: #f0f7fc; border-radius: 8px; }
     </style>
 </head>
 <body>
@@ -61,11 +62,10 @@
         </div>
     </div>
     
-    <!-- دکمه پشتیبانی -->
-    <div class="support-card">
-        <a href="/support" style="text-decoration: none; color: #5b9bd5; font-weight: bold;">
-            🎧 ارتباط با پشتیبانی و مشاهده پیام‌ها
-        </a>
+    <!-- ⭐ دکمه‌های پشتیبانی و پیام‌های ذخیره‌شده -->
+    <div class="btn-box">
+        <a href="/support">🎧 پشتیبانی</a>
+        <a href="/saved">💾 پیام‌های من</a>
     </div>
 
     {% if owned_channels %}
@@ -100,4 +100,4 @@
         <button class="fab" onclick="document.getElementById('fabMenu').style.display = (document.getElementById('fabMenu').style.display === 'flex' ? 'none' : 'flex')">+</button>
     </div>
 </body>
-                                    </html>
+    </html>
