@@ -1,12 +1,10 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash, send_file
-import smtplib
-import ssl
-from email.mime.text import MIMEText
+from flask import Flask, render_template, request, redirect, url_for, session, flash, send_file, jsonify
 import random
 import sqlite3
 import os
 import re
 import shutil
+import json
 from io import BytesIO
 from datetime import datetime
 from werkzeug.utils import secure_filename
@@ -21,12 +19,8 @@ UPLOAD_FOLDER = 'static/uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 if not os.path.exists(UPLOAD_FOLDER): os.makedirs(UPLOAD_FOLDER)
 
-SENDER_EMAIL = "aghwan528@gmail.com" 
-SENDER_PASSWORD = "gsuj yigl jjrn qqih" 
-
-ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "aghwan528@gmail.com") 
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "pnl_admin_ava_a.gh.k.s.a.h") 
-
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "your_email@gmail.com") 
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "") 
 SUPPORT_EMAIL = "support@ava.com" 
 
 # ==========================================
@@ -44,35 +38,13 @@ def init_db():
     cursor.execute('''CREATE TABLE IF NOT EXISTS channels (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, description TEXT, owner_email TEXT NOT NULL, is_private INTEGER DEFAULT 0, channel_type TEXT DEFAULT 'channel', profile_pic TEXT, invite_token TEXT UNIQUE)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS members (id INTEGER PRIMARY KEY AUTOINCREMENT, channel_id INTEGER NOT NULL, user_email TEXT NOT NULL, UNIQUE(channel_id, user_email))''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, channel_id INTEGER NOT NULL, sender_email TEXT NOT NULL, message TEXT NOT NULL, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
-    
     cursor.execute("SELECT * FROM users WHERE email = ?", (SUPPORT_EMAIL,))
     if not cursor.fetchone():
         cursor.execute("INSERT INTO users (email, phone, is_verified, display_name, username) VALUES (?, '00000000000', 1, 'پشتیبانی آوا', 'support')", (SUPPORT_EMAIL,))
-        
     conn.commit()
     conn.close()
 
 init_db()
-
-# ==========================================
-# توابع کمکی
-# ==========================================
-def send_email(receiver_email, code):
-    msg = MIMEText(f"کد تایید شما: {code}", 'plain', 'utf-8')
-    msg['Subject'] = 'کد تایید پیام‌رسان آوا'
-    msg['From'] = SENDER_EMAIL
-    msg['To'] = receiver_email
-    try:
-        # استفاده از پورت 587 و STARTTLS به جای 465 و SSL
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        server.login(SENDER_EMAIL, SENDER_PASSWORD)
-        server.send_message(msg)
-        server.quit()
-        return True
-    except Exception as e:
-        print(f"❌ خطا: {e}")
-        return False
 
 def convert_to_english_digits(text):
     return text.translate(str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789"))
@@ -102,7 +74,6 @@ def login():
             session['user_email'] = email
             session['is_logged_in'] = True
             session.pop('_flashes', None)
-            flash("خوش آمدید! شما قبلاً ثبت‌نام کرده بودید.", "success")
             return redirect(url_for('home'))
             
         code = str(random.randint(100000, 999999))
@@ -117,11 +88,8 @@ def login():
         session['generated_code'] = code
         print(f"\n✅ کد برای {email}: {code}\n")
         
-        if send_email(email, code):
-            flash(f"کد تایید به {email} ارسال شد.", "success")
-        else:
-            flash("خطا در ارسال ایمیل. لطفاً بعداً تلاش کنید.", "error")
-            
+        # ⭐ پیام جدید: کد به اعلان‌ها ارسال شد
+        flash("کد تایید به اعلان‌های شما ارسال شد. لطفاً صفحه را بررسی کنید.", "success")
         return redirect(url_for('verify'))
     return render_template('login.html')
 
