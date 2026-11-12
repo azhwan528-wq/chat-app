@@ -19,8 +19,8 @@ UPLOAD_FOLDER = 'static/uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 if not os.path.exists(UPLOAD_FOLDER): os.makedirs(UPLOAD_FOLDER)
 
-ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "your_email@gmail.com") 
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "") 
+ADMIN_EMAIL = os.environ.get("aghwan528@gmail.com") 
+ADMIN_PASSWORD = os.environ.get("pnl_admin_ava_a.gh.k.s.a.h") 
 SUPPORT_EMAIL = "support@ava.com" 
 
 # ==========================================
