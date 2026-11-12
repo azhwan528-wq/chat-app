@@ -13,6 +13,7 @@
         .input-group label { display: block; margin-bottom: 8px; color: #555; font-size: 14px; }
         .input-group input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; font-family: 'Tahoma'; }
         .btn-submit { width: 100%; padding: 15px; background: #5b9bd5; color: white; border: none; border-radius: 10px; font-size: 18px; cursor: pointer; }
+        .btn-danger { background: #dc3545; }
         .alert-error { background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; margin-bottom: 15px; }
         .alert-success { background-color: #d4edda; color: #155724; padding: 10px; border-radius: 5px; margin-bottom: 15px; }
     </style>
@@ -20,7 +21,7 @@
 <body>
     <div class="header">
         <a href="/home">&#8592;</a>
-        <h1>ویرایش پروفایل</h1>
+        <h1>پروفایل من</h1>
     </div>
     <div class="form-container">
         {% with messages = get_flashed_messages(with_categories=true) %}
@@ -28,6 +29,7 @@
             <div class="alert alert-{{ category }}">{{ message }}</div>
           {% endfor %}
         {% endwith %}
+        
         <form method="POST" enctype="multipart/form-data">
             <div class="input-group">
                 <label>عکس پروفایل (اختیاری)</label>
@@ -43,6 +45,13 @@
             </div>
             <button type="submit" class="btn-submit">ذخیره تغییرات</button>
         </form>
+        
+        <!-- ⭐ دکمه حذف حساب -->
+        <form method="POST" action="/delete_account" onsubmit="return confirm('آیا مطمئنید؟ این کار قابل بازگشت نیست و تمام اطلاعات شما پاک می‌شود.');">
+            <button type="submit" class="btn-submit btn-danger" style="margin-top: 20px;">حذف کامل حساب</button>
+        </form>
+        
+        <a href="/logout" style="display: block; text-align: center; margin-top: 15px; color: #5b9bd5;">خروج از حساب</a>
     </div>
 </body>
 </html>
