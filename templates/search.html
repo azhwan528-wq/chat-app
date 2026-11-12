@@ -13,6 +13,7 @@
         .result-avatar { width: 50px; height: 50px; border-radius: 50%; background: #ccc; display: flex; justify-content: center; align-items: center; margin-left: 15px; font-weight: bold; overflow: hidden; }
         .result-avatar img { width: 100%; height: 100%; object-fit: cover; }
         .empty-state { text-align: center; color: #999; margin-top: 50px; }
+        .join-btn { background: #5b9bd5; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-family: 'Tahoma'; }
     </style>
 </head>
 <body>
@@ -40,15 +41,18 @@
             {% if results.channels %}
                 <h3 style="color: #555; margin-top: 20px;">کانال‌ها و گروه‌ها</h3>
                 {% for ch in results.channels %}
-                <a href="/chat/{{ ch['id'] }}" class="result-item">
+                <div class="result-item">
                     <div class="result-avatar">
                         {% if ch['profile_pic'] %}<img src="{{ url_for('static', filename='uploads/' + ch['profile_pic']) }}">{% else %}{{ ch['name'][0] | upper }}{% endif %}
                     </div>
-                    <div>
+                    <div style="flex: 1;">
                         <div style="font-weight: bold;">{{ ch['name'] }}</div>
-                        <div style="color: #777; font-size: 13px;">{{ ch['description'] or 'بدون توضیحات' }}</div>
+                        <div style="color: #777; font-size: 13px;">{{ ch['member_count'] }} عضو | {{ ch['description'] or 'بدون توضیحات' }}</div>
                     </div>
-                </a>
+                    <form action="/join/{{ ch['invite_token'] }}" method="GET" style="margin: 0;">
+                        <button type="submit" class="join-btn">پیوستن</button>
+                    </form>
+                </div>
                 {% endfor %}
             {% endif %}
         {% else %}
@@ -59,4 +63,4 @@
         {% endif %}
     </div>
 </body>
-              </html>
+</html>
