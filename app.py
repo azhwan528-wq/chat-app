@@ -26,8 +26,9 @@ UPLOAD_FOLDER = 'static/uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 if not os.path.exists(UPLOAD_FOLDER): os.makedirs(UPLOAD_FOLDER)
 
-ADMIN_EMAIL = "aghwan528@gmail.com" 
-ADMIN_PASSWORD = "pnl_admin_ava_a.gh.k.s.a.h" 
+# ⚠️ ایمیل و رمز ادمین جدید را اینجا بگذار
+ADMIN_EMAIL = "temeavachat@gmail.com" 
+ADMIN_PASSWORD = "NewPassword123" 
 SUPPORT_EMAIL = "support@ava.com" 
 
 # ==========================================
@@ -39,6 +40,22 @@ def get_db_connection():
     return conn
 
 def init_db():
+    # ⭐ چک کردن و پاک کردن دیتابیس قدیمی در صورت نیاز
+    if os.path.exists('ava.db'):
+        try:
+            conn = sqlite3.connect('ava.db')
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA table_info(users)")
+            columns = [col[1] for col in cursor.fetchall()]
+            conn.close()
+            
+            if 'ban_until' not in columns:
+                os.remove('ava.db')
+                print("🗑️ دیتابیس قدیمی پاک شد و از نو ساخته می‌شود.")
+        except Exception as e:
+            print(f"⚠️ خطا در چک کردن دیتابیس: {e}")
+
+    # ساخت دیتابیس جدید
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''CREATE TABLE IF NOT EXISTS users (
@@ -72,10 +89,18 @@ def init_db():
     cursor.execute('''CREATE TABLE IF NOT EXISTS saved_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, user_email TEXT NOT NULL, message TEXT NOT NULL, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS private_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, sender_email TEXT NOT NULL, receiver_email TEXT NOT NULL, message TEXT NOT NULL, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     
+    # کاربر پشتیبانی
     cursor.execute("SELECT * FROM users WHERE email = ?", (SUPPORT_EMAIL,))
     if not cursor.fetchone():
         cursor.execute("INSERT INTO users (email, phone, is_verified, display_name, username) VALUES (?, '00000000000', 1, 'پشتیبانی آوا', 'support')", (SUPPORT_EMAIL,))
-        
+    
+    # کاربر ادمین
+    cursor.execute("SELECT * FROM users WHERE is_admin = 1")
+    if not cursor.fetchone():
+        password_hash = generate_password_hash(ADMIN_PASSWORD)
+        cursor.execute("INSERT INTO users (email, phone, password_hash, is_verified, is_admin, display_name) VALUES (?, '00000000000', ?, 1, 1, 'مدیر اصلی')", (ADMIN_EMAIL, password_hash))
+    
+    # کانال اطلاع‌رسانی
     cursor.execute("SELECT * FROM channels WHERE name = 'اطلاع‌رسانی آوا'")
     if not cursor.fetchone():
         invite_token = str(random.randint(100000, 999999))
@@ -90,9 +115,6 @@ init_db()
 def convert_to_english_digits(text):
     return text.translate(str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789"))
 
-# ==========================================
-# توابع کمکی
-# ==========================================
 def is_user_banned(email):
     conn = get_db_connection()
     user = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
@@ -100,14 +122,16 @@ def is_user_banned(email):
     if not user or user['is_banned'] == 0:
         return False
     if user['ban_until']:
-        ban_until = datetime.strptime(user['ban_until'], '%Y-%m-%d %H:%M:%S')
-        if datetime.now() > ban_until:
-            # رفع خودکار بن
-            conn = get_db_connection()
-            conn.execute("UPDATE users SET is_banned = 0, ban_until = NULL WHERE email = ?", (email,))
-            conn.commit()
-            conn.close()
-            return False
+        try:
+            ban_until = datetime.strptime(user['ban_until'], '%Y-%m-%d %H:%M:%S')
+            if datetime.now() > ban_until:
+                conn = get_db_connection()
+                conn.execute("UPDATE users SET is_banned = 0, ban_until = NULL WHERE email = ?", (email,))
+                conn.commit()
+                conn.close()
+                return False
+        except:
+            pass
     return True
 
 def is_channel_suspended(channel_id):
@@ -117,13 +141,16 @@ def is_channel_suspended(channel_id):
     if not channel or channel['is_suspended'] == 0:
         return False
     if channel['suspended_until']:
-        suspended_until = datetime.strptime(channel['suspended_until'], '%Y-%m-%d %H:%M:%S')
-        if datetime.now() > suspended_until:
-            conn = get_db_connection()
-            conn.execute("UPDATE channels SET is_suspended = 0, suspended_until = NULL WHERE id = ?", (channel_id,))
-            conn.commit()
-            conn.close()
-            return False
+        try:
+            suspended_until = datetime.strptime(channel['suspended_until'], '%Y-%m-%d %H:%M:%S')
+            if datetime.now() > suspended_until:
+                conn = get_db_connection()
+                conn.execute("UPDATE channels SET is_suspended = 0, suspended_until = NULL WHERE id = ?", (channel_id,))
+                conn.commit()
+                conn.close()
+                return False
+        except:
+            pass
     return True
 
 def add_user_to_announcement_channel(email):
@@ -183,7 +210,6 @@ def login():
             session['user_email'] = email
             session['is_logged_in'] = True
             add_user_to_announcement_channel(email)
-            # پیام خوش‌آمدگویی
             conn = get_db_connection()
             welcome_msg = "🎉 به پیام‌رسان آوا خوش آمدید!\n\nاز این پس می‌توانید گروه و کانال بسازید، با دوستان خود چت کنید و از امکانات برنامه لذت ببرید. اگر سوالی داشتید، از بخش پشتیبانی با ما در ارتباط باشید."
             conn.execute("INSERT INTO private_messages (sender_email, receiver_email, message) VALUES (?, ?, ?)", (SUPPORT_EMAIL, email, welcome_msg))
@@ -198,6 +224,14 @@ def home():
     if not session.get('is_logged_in'): return redirect(url_for('login'))
     conn = get_db_connection()
     user = conn.execute("SELECT * FROM users WHERE email = ?", (session['user_email'],)).fetchone()
+    
+    # ⭐ اگه کاربر پیدا نشد (مثلاً دیتابیس پاک شده)، به لاگین برگردون
+    if not user:
+        conn.close()
+        session.clear()
+        flash("لطفاً دوباره وارد شوید.", "error")
+        return redirect(url_for('login'))
+    
     owned_channels = conn.execute("SELECT * FROM channels WHERE owner_email = ? AND name NOT IN ('پشتیبانی آوا', 'اطلاع‌رسانی آوا')", (session['user_email'],)).fetchall()
     joined_channels = conn.execute('''SELECT c.* FROM channels c JOIN members m ON c.id = m.channel_id WHERE m.user_email = ?''', (session['user_email'],)).fetchall()
     conn.close()
@@ -412,7 +446,7 @@ def delete_message(message_id):
     return redirect(url_for('chat', channel_id=channel_id))
 
 # ==========================================
-# ⭐ پنل ادمین (کامل)
+# ⭐ پنل ادمین (بدون لاگین)
 # ==========================================
 @app.route('/admin_panel_secret')
 def admin_panel():
@@ -471,7 +505,6 @@ def admin_reply_private(message_id):
         conn.close()
     return redirect(url_for('admin_panel'))
 
-# ⭐ تعلیق کاربر
 @app.route('/admin/ban_user/<int:user_id>', methods=['POST'])
 def admin_ban_user(user_id):
     days = int(request.form.get('days', 0))
@@ -484,7 +517,6 @@ def admin_ban_user(user_id):
         flash(f"کاربر به مدت {days} روز مسدود شد.", "success")
     return redirect(url_for('admin_panel'))
 
-# ⭐ رفع تعلیق کاربر
 @app.route('/admin/unban_user/<int:user_id>', methods=['POST'])
 def admin_unban_user(user_id):
     conn = get_db_connection()
@@ -494,7 +526,6 @@ def admin_unban_user(user_id):
     flash("کاربر از مسدودی خارج شد.", "success")
     return redirect(url_for('admin_panel'))
 
-# ⭐ تعلیق گروه/کانال
 @app.route('/admin/suspend_channel/<int:channel_id>', methods=['POST'])
 def admin_suspend_channel(channel_id):
     days = int(request.form.get('days', 0))
@@ -507,7 +538,6 @@ def admin_suspend_channel(channel_id):
         flash(f"گروه/کانال به مدت {days} روز تعلیق شد.", "success")
     return redirect(url_for('admin_panel'))
 
-# ⭐ رفع تعلیق گروه/کانال
 @app.route('/admin/unsuspend_channel/<int:channel_id>', methods=['POST'])
 def admin_unsuspend_channel(channel_id):
     conn = get_db_connection()
@@ -517,7 +547,6 @@ def admin_unsuspend_channel(channel_id):
     flash("گروه/کانال از تعلیق خارج شد.", "success")
     return redirect(url_for('admin_panel'))
 
-# ⭐ بخش جدید: ارسال پیام هدفمند
 @app.route('/admin/target_message', methods=['POST'])
 def admin_target_message():
     user_input = request.form.get('user_input', '').strip()
@@ -553,6 +582,26 @@ def admin_target_message():
         else:
             flash("این کاربر کانالی ندارد.", "error")
     
+    conn.commit()
+    conn.close()
+    return redirect(url_for('admin_panel'))
+
+@app.route('/admin/user_action/<action>/<int:user_id>', methods=['POST'])
+def admin_user_action(action, user_id):
+    conn = get_db_connection()
+    user = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    if not user:
+        conn.close(); flash("کاربر یافت نشد.", "error"); return redirect(url_for('admin_panel'))
+    if action == 'make_admin':
+        new_admin_status = 0 if user['is_admin'] == 1 else 1
+        conn.execute("UPDATE users SET is_admin = ? WHERE id = ?", (new_admin_status, user_id))
+        flash("وضعیت ادمین تغییر کرد.", "success")
+    elif action == 'login_as':
+        conn.close()
+        session['user_email'] = user['email']
+        session['is_logged_in'] = True
+        flash(f"شما وارد حساب {user['email']} شدید.", "success")
+        return redirect(url_for('home'))
     conn.commit()
     conn.close()
     return redirect(url_for('admin_panel'))
