@@ -696,4 +696,15 @@ def backup_database():
 
 @app.route('/admin/restore_database', methods=['POST'])
 def restore_database():
-    file =
+    file = request.files.get('backup_file')
+    if file and file.filename.endswith('.db'):
+        file.save('ava.db')
+        flash("دیتابیس با موفقیت بازیابی شد!", "success")
+        return redirect(url_for('admin_panel'))
+    else:
+        flash("لطفاً یک فایل معتبر با پسوند .db انتخاب کنید.", "error")
+        return redirect(url_for('admin_panel'))
+
+if __name__ == '__main__':
+    port = int(os.environ.get("PORT", 5000))
+    app.run(debug=False, host='0.0.0.0', port=port)
