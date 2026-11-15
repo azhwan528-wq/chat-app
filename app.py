@@ -84,10 +84,22 @@ def init_db():
     cursor.execute('''CREATE TABLE IF NOT EXISTS saved_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, user_email TEXT NOT NULL, message TEXT NOT NULL, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS private_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, sender_email TEXT NOT NULL, receiver_email TEXT NOT NULL, message TEXT NOT NULL, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     
+    # جدول برای ویدیوهای آپارات
+    cursor.execute('''CREATE TABLE IF NOT EXISTS videos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, 
+        title TEXT NOT NULL, 
+        video_url TEXT NOT NULL, 
+        thumbnail_url TEXT,
+        added_by TEXT,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )''')
+    
+    # کاربر پشتیبانی
     cursor.execute("SELECT * FROM users WHERE email = ?", (SUPPORT_EMAIL,))
     if not cursor.fetchone():
         cursor.execute("INSERT INTO users (email, phone, is_verified, display_name, username) VALUES (?, '00000000000', 1, 'پشتیبانی آوا', 'support')", (SUPPORT_EMAIL,))
     
+    # کانال اطلاع‌رسانی
     cursor.execute("SELECT * FROM channels WHERE name = 'اطلاع‌رسانی آوا'")
     if not cursor.fetchone():
         invite_token = str(random.randint(100000, 999999))
@@ -220,7 +232,7 @@ def home():
 
     all_chats = []
 
-    # 1. گروه‌ها و کانال‌ها
+    # گروه‌ها و کانال‌ها
     channels = conn.execute('''
         SELECT c.*, (SELECT MAX(timestamp) FROM messages m WHERE m.channel_id = c.id) as last_time
         FROM channels c
@@ -241,7 +253,7 @@ def home():
             'is_owner': ch['owner_email'] == session['user_email']
         })
 
-    # 2. چت‌های خصوصی
+    # چت‌های خصوصی
     chat_partners = conn.execute('''
         SELECT DISTINCT CASE WHEN sender_email = ? THEN receiver_email ELSE sender_email END as other_email
         FROM private_messages WHERE sender_email = ? OR receiver_email = ?
@@ -352,6 +364,40 @@ def saved_messages():
     messages = conn.execute("SELECT * FROM saved_messages WHERE user_email = ? ORDER BY timestamp DESC", (session['user_email'],)).fetchall()
     conn.close()
     return render_template('saved_messages.html', messages=messages)
+
+# ==========================================
+# ⭐ بخش جدید: ویدیوها (آپارات)
+# ==========================================
+@app.route('/videos')
+def videos():
+    if not session.get('is_logged_in'): return redirect(url_for('login'))
+    conn = get_db_connection()
+    all_videos = conn.execute("SELECT * FROM videos ORDER BY timestamp DESC").fetchall()
+    conn.close()
+    return render_template('videos.html', videos=all_videos)
+
+@app.route('/add_video', methods=['GET', 'POST'])
+def add_video():
+    if not session.get('is_logged_in'): return redirect(url_for('login'))
+    if request.method == 'POST':
+        title = request.form.get('title', '').strip()
+        video_url = request.form.get('video_url', '').strip()
+        
+        # تبدیل لینک آپارات به لینک embed
+        if 'aparat.com/v/' in video_url:
+            video_id = video_url.split('/v/')[-1]
+            video_url = f"https://www.aparat.com/video/video/embed/videohash/{video_id}/vt/frame"
+        elif 'aparat.com/video/video/embed/videohash/' not in video_url:
+            flash("لطفاً لینک معتبر آپارات را وارد کنید.", "error")
+            return redirect(url_for('add_video'))
+        
+        conn = get_db_connection()
+        conn.execute("INSERT INTO videos (title, video_url, added_by) VALUES (?, ?, ?)", (title, video_url, session['user_email']))
+        conn.commit()
+        conn.close()
+        flash("ویدیو با موفقیت اضافه شد!", "success")
+        return redirect(url_for('videos'))
+    return render_template('add_video.html')
 
 @app.route('/search', methods=['GET'])
 def search():
