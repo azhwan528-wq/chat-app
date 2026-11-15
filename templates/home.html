@@ -2,187 +2,160 @@
 <html lang="fa" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>پیام‌رسان آوا | خانه</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>پیام‌رسان آوا</title>
     <style>
-        body { font-family: 'Tahoma', sans-serif; background-color: #f0f2f5; margin: 0; padding: 0; padding-bottom: 100px; /* ⭐ فاصله از پایین برای منو */ }
-        
-        /* هدر */
-        .header { background-color: #5b9bd5; color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
-        .header h1 { margin: 0; font-size: 20px; }
-        
-        /* جستجو */
-        .search-box { padding: 10px 15px; background: #5b9bd5; }
-        .search-box form { display: flex; background: white; border-radius: 25px; padding: 5px 15px; align-items: center; }
-        .search-box input { border: none; outline: none; flex-grow: 1; padding: 8px; font-family: 'Tahoma'; font-size: 14px; }
-        .search-box button { background: none; border: none; color: #5b9bd5; cursor: pointer; font-size: 16px; }
-        
-        /* اطلاعات کاربر */
-        .user-info { background: white; margin: 15px; padding: 15px; border-radius: 10px; display: flex; align-items: center; gap: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        .user-avatar { width: 60px; height: 60px; background: #5b9bd5; color: white; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 24px; overflow: hidden; }
-        .user-avatar img { width: 100%; height: 100%; object-fit: cover; }
-        
-        /* لیست‌ها */
-        .section-title { margin: 20px 15px 10px; font-size: 16px; color: #555; font-weight: bold; }
-        .chat-list { background: white; margin: 0 15px 15px; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        .chat-item { display: flex; align-items: center; padding: 15px; border-bottom: 1px solid #eee; text-decoration: none; color: inherit; }
-        .chat-avatar { width: 50px; height: 50px; border-radius: 50%; background: #e0e0e0; display: flex; justify-content: center; align-items: center; margin-left: 15px; font-weight: bold; overflow: hidden; }
+        @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;700&display=swap');
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Vazirmatn', 'Tahoma', sans-serif; background-color: #f4f5f7; color: #333; padding-bottom: 70px; }
+
+        /* هدر بالا */
+        .top-header { display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background: #fff; position: sticky; top: 0; z-index: 100; }
+        .top-header .title { font-size: 20px; font-weight: bold; color: #333; }
+        .top-header .icon { font-size: 22px; color: #555; cursor: pointer; }
+
+        /* استوری‌ها */
+        .stories { display: flex; gap: 15px; padding: 10px 20px; background: #fff; overflow-x: auto; scrollbar-width: none; }
+        .stories::-webkit-scrollbar { display: none; }
+        .story-item { display: flex; flex-direction: column; align-items: center; gap: 5px; cursor: pointer; }
+        .story-avatar { width: 65px; height: 65px; border-radius: 50%; background: #ccc; display: flex; justify-content: center; align-items: center; color: #fff; font-weight: bold; font-size: 24px; position: relative; border: 2px solid transparent; background-clip: padding-box; }
+        .story-avatar.my-story { border: 2px solid #1ed760; padding: 3px; }
+        .story-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+        .story-avatar .plus { position: absolute; bottom: 0; right: 0; background: #1ed760; color: #fff; width: 22px; height: 22px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 14px; border: 2px solid #fff; }
+        .story-name { font-size: 11px; color: #555; max-width: 70px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        /* تب‌ها (فیلتر) */
+        .tabs { display: flex; background: #fff; border-bottom: 1px solid #eee; overflow-x: auto; scrollbar-width: none; position: sticky; top: 60px; z-index: 90; }
+        .tabs::-webkit-scrollbar { display: none; }
+        .tab { flex: 1; text-align: center; padding: 15px 0; font-size: 14px; color: #777; cursor: pointer; position: relative; white-space: nowrap; min-width: 100px; }
+        .tab.active { color: #1ed760; font-weight: bold; }
+        .tab.active::after { content: ''; position: absolute; bottom: 0; left: 10%; right: 10%; height: 3px; background: #1ed760; border-radius: 3px 3px 0 0; }
+        .tab .badge { background: #e0e0e0; color: #555; font-size: 10px; padding: 2px 6px; border-radius: 10px; margin-right: 5px; }
+
+        /* لیست چت‌ها */
+        .chat-list { background: #fff; }
+        .chat-item { display: flex; align-items: center; padding: 12px 20px; border-bottom: 1px solid #f0f0f0; text-decoration: none; color: inherit; }
+        .chat-avatar { width: 55px; height: 55px; border-radius: 50%; background: #e0e0e0; display: flex; justify-content: center; align-items: center; margin-left: 15px; font-weight: bold; font-size: 20px; overflow: hidden; flex-shrink: 0; }
         .chat-avatar img { width: 100%; height: 100%; object-fit: cover; }
-        .chat-name { font-weight: bold; margin-bottom: 5px; color: #333; }
-        .chat-msg { color: #777; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
-        .chat-time { font-size: 11px; color: #999; margin-right: auto; }
+        .chat-content { flex-grow: 1; overflow: hidden; }
+        .chat-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+        .chat-name { font-weight: bold; font-size: 15px; color: #333; display: flex; align-items: center; gap: 5px; }
+        .chat-time { font-size: 11px; color: #999; }
+        .chat-msg { font-size: 13px; color: #777; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .unread-badge { background: #1ed760; color: #fff; font-size: 11px; padding: 2px 7px; border-radius: 10px; margin-right: auto; }
         
-        /* پیام‌های شخصی */
-        .badge-pv { background: #e1f5fe; color: #0277bd; font-size: 10px; padding: 2px 5px; border-radius: 5px; margin-right: 5px; }
+        /* آیکون‌های کوچک داخل لیست */
+        .type-icon { font-size: 12px; color: #999; }
+        .verified-icon { color: #1d9bf0; font-size: 14px; }
+
+        /* منوی پایین */
+        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; display: flex; justify-content: space-around; align-items: center; padding: 10px 0; border-top: 1px solid #eee; z-index: 1000; }
+        .nav-item { display: flex; flex-direction: column; align-items: center; text-decoration: none; color: #888; font-size: 11px; gap: 3px; }
+        .nav-item.active { color: #1ed760; }
+        .nav-item .icon { font-size: 22px; }
+
+        /* دکمه شناور (FAB) */
+        .fab { position: fixed; bottom: 80px; left: 20px; width: 55px; height: 55px; background: #5b9bd5; color: #fff; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 24px; box-shadow: 0 4px 10px rgba(91, 155, 213, 0.4); text-decoration: none; z-index: 1000; }
         
-        /* دکمه شناور ساخت گروه/کانال */
-        .fab-container { position: fixed; bottom: 90px; left: 20px; z-index: 100; display: flex; flex-direction: column; align-items: flex-end; }
-        .fab-menu { display: none; flex-direction: column; margin-bottom: 10px; gap: 10px; }
-        .fab-menu a { background: white; color: #333; text-decoration: none; padding: 10px 15px; border-radius: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); font-size: 14px; text-align: center; }
-        .fab { width: 60px; height: 60px; background-color: #5b9bd5; color: white; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 30px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); border: none; cursor: pointer; }
-        
-        /* ⭐ منوی پایین شناور (Bottom Navigation) */
-        .bottom-nav {
-            position: fixed;
-            bottom: 15px;
-            left: 15px;
-            right: 15px;
-            background-color: white;
-            border-radius: 30px;
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-            padding: 10px 5px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-            z-index: 1000;
-        }
-        
-        .nav-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            text-decoration: none;
-            color: #888;
-            font-size: 11px;
-            font-family: 'Tahoma';
-            transition: all 0.3s ease;
-            flex: 1;
-        }
-        
-        .nav-item .icon {
-            font-size: 22px;
-            margin-bottom: 3px;
-        }
-        
-        /* حالت فعال (تب خانه) */
-        .nav-item.active { color: #5b9bd5; font-weight: bold; }
-        .nav-item.active .icon { transform: scale(1.1); }
-        
-        .alert { margin: 15px; padding: 10px; border-radius: 5px; background-color: #d4edda; color: #155724; }
+        /* منوی بازشونده FAB */
+        .fab-menu { display: none; position: fixed; bottom: 140px; left: 20px; background: #fff; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); z-index: 1000; flex-direction: column; overflow: hidden; }
+        .fab-menu a { padding: 12px 20px; text-decoration: none; color: #333; font-size: 14px; border-bottom: 1px solid #eee; }
+        .fab-menu a:last-child { border-bottom: none; }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>پیام‌رسان آوا</h1>
-    </div>
-    
-    <div class="search-box">
-        <form action="/search" method="GET">
-            <input type="text" name="q" placeholder="جستجو بر اساس آیدی، نام کانال..." required>
-            <button type="submit">🔍</button>
-        </form>
+
+    <!-- هدر بالا -->
+    <div class="top-header">
+        <div class="icon">🔍</div>
+        <div class="title">پیام‌رسان آوا</div>
+        <div class="icon">⚙️</div>
     </div>
 
-    {% with messages = get_flashed_messages() %}
-      {% if messages %}{% for message in messages %}<div class="alert">{{ message }}</div>{% endfor %}{% endif %}
-    {% endwith %}
-
-    <div class="user-info">
-        <div class="user-avatar">
-            {% if user['profile_pic'] %}<img src="{{ url_for('static', filename='uploads/' + user['profile_pic']) }}">{% else %}{{ user['email'][0] | upper }}{% endif %}
+    <!-- استوری‌ها -->
+    <div class="stories">
+        <div class="story-item">
+            <div class="story-avatar my-story" style="background: #5b9bd5;">
+                {{ user['email'][0] | upper }}
+                <div class="plus">+</div>
+            </div>
+            <div class="story-name">استوری من</div>
         </div>
-        <div>
-            <h3 style="margin: 0;">{{ user['display_name'] or 'بدون نام' }}</h3>
-            <p style="color: #777; font-size: 14px; margin: 5px 0 0;">@{{ user['username'] or 'بدون آیدی' }}</p>
+        <!-- نمونه استوری‌های دیگران -->
+        <div class="story-item">
+            <div class="story-avatar" style="background: #e91e63;">م</div>
+            <div class="story-name">مهدیار</div>
+        </div>
+        <div class="story-item">
+            <div class="story-avatar" style="background: #9c27b0;">ت</div>
+            <div class="story-name">تریک</div>
         </div>
     </div>
 
-    {% if owned_channels %}
-        <div class="section-title">مدیریت کانال‌ها و گروه‌های من</div>
-        <div class="chat-list">
-            {% for ch in owned_channels %}
-            <a href="/chat/{{ ch['id'] }}" class="chat-item">
-                <div class="chat-avatar">{% if ch['profile_pic'] %}<img src="{{ url_for('static', filename='uploads/' + ch['profile_pic']) }}">{% else %}{{ ch['name'][0] | upper }}{% endif %}</div>
-                <div><div class="chat-name">{{ ch['name'] }} {% if ch['channel_type']=='group' %}[گروه]{% else %}[کانال]{% endif %}</div></div>
-            </a>
-            {% endfor %}
-        </div>
-    {% endif %}
+    <!-- تب‌ها -->
+    <div class="tabs">
+        <div class="tab active" onclick="filterChats('all', this)">همه</div>
+        <div class="tab" onclick="filterChats('group', this)">گروه‌ها</div>
+        <div class="tab" onclick="filterChats('channel', this)">کانال‌ها</div>
+        <div class="tab" onclick="filterChats('private', this)">پیام‌های شخصی</div>
+    </div>
 
-    {% if joined_channels %}
-        <div class="section-title">گروه‌ها و کانال‌های من</div>
-        <div class="chat-list">
-            {% for ch in joined_channels %}
-            <a href="/chat/{{ ch['id'] }}" class="chat-item">
-                <div class="chat-avatar">{% if ch['profile_pic'] %}<img src="{{ url_for('static', filename='uploads/' + ch['profile_pic']) }}">{% else %}{{ ch['name'][0] | upper }}{% endif %}</div>
-                <div><div class="chat-name">{{ ch['name'] }}</div></div>
-            </a>
-            {% endfor %}
-        </div>
-    {% endif %}
-
-    <!-- ⭐ بخش چت‌های خصوصی -->
-    {% if private_chats %}
-        <div class="section-title" id="private-chats">پیام‌های شخصی</div>
-        <div class="chat-list">
-            {% for chat in private_chats %}
-            <a href="/private_chat/{{ chat['email'] }}" class="chat-item">
+    <!-- لیست چت‌ها -->
+    <div class="chat-list" id="chatList">
+        {% if all_chats %}
+            {% for chat in all_chats %}
+            <a href="{{ chat['link'] }}" class="chat-item" data-type="{{ chat['type'] }}">
                 <div class="chat-avatar">
-                    {% if chat['profile_pic'] %}
-                        <img src="{{ url_for('static', filename='uploads/' + chat['profile_pic']) }}">
+                    {% if chat['avatar'] %}
+                        <img src="{{ url_for('static', filename='uploads/' + chat['avatar']) }}">
                     {% else %}
-                        {{ chat['email'][0] | upper }}
+                        {{ chat['name'][0] | upper }}
                     {% endif %}
                 </div>
-                <div style="flex-grow: 1; overflow: hidden;">
-                    <div class="chat-name">
-                        {{ chat['display_name'] or chat['email'] }} 
-                        <span class="badge-pv">خصوصی</span>
+                <div class="chat-content">
+                    <div class="chat-header">
+                        <div class="chat-name">
+                            {{ chat['name'] }}
+                            {% if chat['type'] == 'channel' %}<span class="type-icon">📢</span>{% endif %}
+                            {% if chat['type'] == 'group' %}<span class="type-icon">👥</span>{% endif %}
+                            {% if chat['is_owner'] %}<span class="type-icon" title="مدیر">👑</span>{% endif %}
+                        </div>
+                        <div class="chat-time">{{ chat['last_time'][11:16] if chat['last_time'] != '2026-01-01 00:00:00' else '' }}</div>
                     </div>
-                    <div class="chat-msg">{{ chat['last_message'] or 'شروع گفتگو...' }}</div>
+                    <div class="chat-msg">
+                        {{ chat['last_message'] }}
+                    </div>
                 </div>
-                <div class="chat-time">{{ chat['timestamp'][11:16] if chat['timestamp'] else '' }}</div>
+                <!-- تعداد پیام خوانده نشده (نمونه) -->
+                <!-- <div class="unread-badge">۳</div> -->
             </a>
             {% endfor %}
-        </div>
-    {% endif %}
-
-    <!-- دکمه شناور ساخت گروه/کانال -->
-    <div class="fab-container">
-        <div class="fab-menu" id="fabMenu">
-            <a href="/create/channel">📢 ساخت کانال</a>
-            <a href="/create/group">👥 ساخت گروه</a>
-        </div>
-        <button class="fab" onclick="document.getElementById('fabMenu').style.display = (document.getElementById('fabMenu').style.display === 'flex' ? 'none' : 'flex')">+</button>
+        {% else %}
+            <div style="text-align: center; padding: 50px 20px; color: #888;">
+                <div style="font-size: 40px; margin-bottom: 15px;">💬</div>
+                <div style="font-weight: bold; margin-bottom: 10px;">هنوز گفتگویی نداری</div>
+                <div style="font-size: 13px;">با دوستانت شروع به گفتگو کن یا یک گروه و کانال بساز.</div>
+            </div>
+        {% endif %}
     </div>
 
-    <!-- ⭐ منوی پایین (Bottom Navigation) -->
+    <!-- منوی پایین -->
     <div class="bottom-nav">
         <a href="/home" class="nav-item active">
             <span class="icon">🏠</span>
             خانه
         </a>
-        <a href="#private-chats" class="nav-item">
+        <a href="#" class="nav-item" onclick="filterChats('private', document.querySelectorAll('.tab')[3])">
             <span class="icon">💬</span>
             پیام‌ها
         </a>
-        <a href="/support" class="nav-item">
-            <span class="icon">🎧</span>
-            پشتیبانی
+        <a href="#" class="nav-item">
+            <span class="icon">🧭</span>
+            رویداد
         </a>
-        <a href="/saved" class="nav-item">
-            <span class="icon">💾</span>
-            ذخیره‌ها
+        <a href="#" class="nav-item">
+            <span class="icon">🎬</span>
+            فیلم
         </a>
         <a href="/profile" class="nav-item">
             <span class="icon">👤</span>
@@ -190,5 +163,47 @@
         </a>
     </div>
 
+    <!-- دکمه شناور -->
+    <a href="#" class="fab" onclick="toggleFab(event)">✏️</a>
+    <div class="fab-menu" id="fabMenu">
+        <a href="/create/channel">📢 ساخت کانال</a>
+        <a href="/create/group">👥 ساخت گروه</a>
+    </div>
+
+    <!-- اسکریپت‌ها -->
+    <script>
+        // فیلتر کردن تب‌ها
+        function filterChats(type, element) {
+            // تغییر ظاهر تب فعال
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            if (element) element.classList.add('active');
+
+            // فیلتر کردن لیست
+            const items = document.querySelectorAll('.chat-item');
+            items.forEach(item => {
+                if (type === 'all' || item.getAttribute('data-type') === type) {
+                    item.style.display = 'flex';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        }
+
+        // نمایش/مخفی کردن منوی دکمه شناور
+        function toggleFab(event) {
+            event.preventDefault();
+            const menu = document.getElementById('fabMenu');
+            menu.style.display = menu.style.display === 'flex' ? 'none' : 'flex';
+        }
+
+        // بستن منو با کلیک بیرون
+        document.addEventListener('click', function(event) {
+            const fab = document.querySelector('.fab');
+            const menu = document.getElementById('fabMenu');
+            if (!fab.contains(event.target) && !menu.contains(event.target)) {
+                menu.style.display = 'none';
+            }
+        });
+    </script>
 </body>
-            </html>
+                </html>
