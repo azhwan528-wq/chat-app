@@ -198,7 +198,6 @@ def login():
             session['is_logged_in'] = True
             add_user_to_announcement_channel(email)
             
-            # ⭐ پیام خوش‌آمدگویی از طرف پشتیبانی (فقط یک بار)
             conn = get_db_connection()
             welcome_msg = "🎉 به پیام‌رسان آوا خوش آمدید!\n\nاز این پس می‌توانید گروه و کانال بسازید، با دوستان خود چت کنید و از امکانات برنامه لذت ببرید."
             conn.execute("INSERT INTO private_messages (sender_email, receiver_email, message) VALUES (?, ?, ?)", (SUPPORT_EMAIL, email, welcome_msg))
@@ -218,10 +217,62 @@ def home():
         session.clear()
         flash("لطفاً دوباره وارد شوید.", "error")
         return redirect(url_for('login'))
-    owned_channels = conn.execute("SELECT * FROM channels WHERE owner_email = ? AND name NOT IN ('پشتیبانی آوا', 'اطلاع‌رسانی آوا')", (session['user_email'],)).fetchall()
-    joined_channels = conn.execute('''SELECT c.* FROM channels c JOIN members m ON c.id = m.channel_id WHERE m.user_email = ?''', (session['user_email'],)).fetchall()
+
+    all_chats = []
+
+    # 1. گروه‌ها و کانال‌ها
+    channels = conn.execute('''
+        SELECT c.*, (SELECT MAX(timestamp) FROM messages m WHERE m.channel_id = c.id) as last_time
+        FROM channels c
+        JOIN members mem ON c.id = mem.channel_id
+        WHERE mem.user_email = ? AND c.name NOT IN ('پشتیبانی آوا')
+    ''', (session['user_email'],)).fetchall()
+
+    for ch in channels:
+        last_msg = conn.execute("SELECT message FROM messages WHERE channel_id = ? ORDER BY timestamp DESC LIMIT 1", (ch['id'],)).fetchone()
+        all_chats.append({
+            'id': str(ch['id']),
+            'type': ch['channel_type'],
+            'name': ch['name'],
+            'avatar': ch['profile_pic'],
+            'last_message': last_msg['message'] if last_msg else 'بدون پیام',
+            'last_time': ch['last_time'] if ch['last_time'] else '2026-01-01 00:00:00',
+            'link': url_for('chat', channel_id=ch['id']),
+            'is_owner': ch['owner_email'] == session['user_email']
+        })
+
+    # 2. چت‌های خصوصی
+    chat_partners = conn.execute('''
+        SELECT DISTINCT CASE WHEN sender_email = ? THEN receiver_email ELSE sender_email END as other_email
+        FROM private_messages WHERE sender_email = ? OR receiver_email = ?
+    ''', (session['user_email'], session['user_email'], session['user_email'])).fetchall()
+
+    for partner in chat_partners:
+        other_email = partner['other_email']
+        if other_email == SUPPORT_EMAIL: continue
+
+        other_user = conn.execute("SELECT * FROM users WHERE email = ?", (other_email,)).fetchone()
+        if other_user:
+            last_msg = conn.execute('''
+                SELECT message, timestamp FROM private_messages 
+                WHERE (sender_email = ? AND receiver_email = ?) OR (sender_email = ? AND receiver_email = ?) 
+                ORDER BY timestamp DESC LIMIT 1
+            ''', (session['user_email'], other_email, other_email, session['user_email'])).fetchone()
+
+            all_chats.append({
+                'id': other_email,
+                'type': 'private',
+                'name': other_user['display_name'] or other_email,
+                'avatar': other_user['profile_pic'],
+                'last_message': last_msg['message'] if last_msg else 'شروع گفتگو...',
+                'last_time': last_msg['timestamp'] if last_msg else '2026-01-01 00:00:00',
+                'link': url_for('private_chat', email=other_email),
+                'is_owner': False
+            })
+
+    all_chats.sort(key=lambda x: str(x['last_time']), reverse=True)
     conn.close()
-    return render_template('home.html', user=user, owned_channels=owned_channels, joined_channels=joined_channels)
+    return render_template('home.html', user=user, all_chats=all_chats)
 
 @app.route('/logout')
 def logout():
@@ -302,7 +353,6 @@ def saved_messages():
     conn.close()
     return render_template('saved_messages.html', messages=messages)
 
-# ⭐ مسیر اصلاح شده جستجو
 @app.route('/search', methods=['GET'])
 def search():
     if not session.get('is_logged_in'): return redirect(url_for('login'))
@@ -334,7 +384,6 @@ def user_profile(username):
         return redirect(url_for('search'))
     return render_template('user_profile.html', user=user)
 
-# ⭐ مسیر چت خصوصی بین دو کاربر
 @app.route('/private_chat/<email>', methods=['GET', 'POST'])
 def private_chat(email):
     if not session.get('is_logged_in'): return redirect(url_for('login'))
@@ -647,15 +696,4 @@ def backup_database():
 
 @app.route('/admin/restore_database', methods=['POST'])
 def restore_database():
-    file = request.files.get('backup_file')
-    if file and file.filename.endswith('.db'):
-        file.save('ava.db')
-        flash("دیتابیس با موفقیت بازیابی شد!", "success")
-        return redirect(url_for('admin_panel'))
-    else:
-        flash("لطفاً یک فایل معتبر با پسوند .db انتخاب کنید.", "error")
-        return redirect(url_for('admin_panel'))
-
-if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    app.run(debug=False, host='0.0.0.0', port=port)
+    file =
