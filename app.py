@@ -26,8 +26,7 @@ UPLOAD_FOLDER = 'static/uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 if not os.path.exists(UPLOAD_FOLDER): os.makedirs(UPLOAD_FOLDER)
 
-# ⭐ دیگه نیازی به ایمیل و رمز ادمین نیست
-ADMIN_EMAIL = "aghwan528@gmail.com" # فقط برای اینکه پیام‌های خودکار از طرف این ایمیل باشه
+ADMIN_EMAIL = "aghwan528@gmail.com" 
 SUPPORT_EMAIL = "support@ava.com" 
 
 # ==========================================
@@ -85,12 +84,10 @@ def init_db():
     cursor.execute('''CREATE TABLE IF NOT EXISTS saved_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, user_email TEXT NOT NULL, message TEXT NOT NULL, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS private_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, sender_email TEXT NOT NULL, receiver_email TEXT NOT NULL, message TEXT NOT NULL, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     
-    # کاربر پشتیبانی
     cursor.execute("SELECT * FROM users WHERE email = ?", (SUPPORT_EMAIL,))
     if not cursor.fetchone():
         cursor.execute("INSERT INTO users (email, phone, is_verified, display_name, username) VALUES (?, '00000000000', 1, 'پشتیبانی آوا', 'support')", (SUPPORT_EMAIL,))
     
-    # کانال اطلاع‌رسانی
     cursor.execute("SELECT * FROM channels WHERE name = 'اطلاع‌رسانی آوا'")
     if not cursor.fetchone():
         invite_token = str(random.randint(100000, 999999))
@@ -155,7 +152,7 @@ def add_user_to_announcement_channel(email):
     conn.close()
 
 # ==========================================
-# مسیرهای اصلی کاربران
+# مسیرهای اصلی
 # ==========================================
 @app.route('/', methods=['GET', 'POST'])
 def login():
@@ -200,6 +197,8 @@ def login():
             session['user_email'] = email
             session['is_logged_in'] = True
             add_user_to_announcement_channel(email)
+            
+            # ⭐ پیام خوش‌آمدگویی از طرف پشتیبانی (فقط یک بار)
             conn = get_db_connection()
             welcome_msg = "🎉 به پیام‌رسان آوا خوش آمدید!\n\nاز این پس می‌توانید گروه و کانال بسازید، با دوستان خود چت کنید و از امکانات برنامه لذت ببرید."
             conn.execute("INSERT INTO private_messages (sender_email, receiver_email, message) VALUES (?, ?, ?)", (SUPPORT_EMAIL, email, welcome_msg))
@@ -330,6 +329,32 @@ def user_profile(username):
         return redirect(url_for('search'))
     return render_template('user_profile.html', user=user)
 
+# ⭐ مسیر جدید: چت خصوصی بین دو کاربر
+@app.route('/private_chat/<email>', methods=['GET', 'POST'])
+def private_chat(email):
+    if not session.get('is_logged_in'): return redirect(url_for('login'))
+    conn = get_db_connection()
+    
+    other_user = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+    if not other_user:
+        conn.close()
+        flash("کاربری یافت نشد.", "error")
+        return redirect(url_for('home'))
+    
+    if request.method == 'POST':
+        msg = request.form.get('message', '').strip()
+        if msg:
+            conn.execute("INSERT INTO private_messages (sender_email, receiver_email, message) VALUES (?, ?, ?)", (session['user_email'], email, msg))
+            conn.commit()
+        return redirect(url_for('private_chat', email=email))
+    
+    messages = conn.execute('''SELECT * FROM private_messages 
+                               WHERE (sender_email = ? AND receiver_email = ?) OR (sender_email = ? AND receiver_email = ?) 
+                               ORDER BY timestamp ASC''', 
+                           (session['user_email'], email, email, session['user_email'])).fetchall()
+    conn.close()
+    return render_template('private_chat.html', messages=messages, user_email=session['user_email'], other_user=other_user)
+
 @app.route('/create/<type>', methods=['GET', 'POST'])
 def create_channel(type):
     if not session.get('is_logged_in'): return redirect(url_for('login'))
@@ -349,7 +374,7 @@ def create_channel(type):
         cursor.execute("INSERT INTO channels (name, description, owner_email, is_private, channel_type, profile_pic, invite_token) VALUES (?, ?, ?, ?, ?, ?, ?)", (name, description, session['user_email'], is_private, type, filename, invite_token))
         channel_id = cursor.lastrowid
         cursor.execute("INSERT INTO members (channel_id, user_email) VALUES (?, ?)", (channel_id, session['user_email']))
-        welcome_msg = f"🎉 به {name} خوش آمدید! این {'کانال' if type == 'channel' else 'گروه'} توسط مدیریت ساخته شد."
+        welcome_msg = f"🎉 {'کانال' if type == 'channel' else 'گروه'} با موفقیت ایجاد شد."
         cursor.execute("INSERT INTO messages (channel_id, sender_email, message) VALUES (?, ?, ?)", (channel_id, ADMIN_EMAIL, welcome_msg))
         conn.commit()
         conn.close()
@@ -437,7 +462,6 @@ def delete_message(message_id):
 # ==========================================
 @app.route('/admin_panel_secret')
 def admin_panel():
-    # دیگه نیازی به لاگین نیست، مستقیم پنل رو نشون بده
     conn = get_db_connection()
     total_users = conn.execute("SELECT COUNT(*) as count FROM users").fetchone()['count']
     total_channels = conn.execute("SELECT COUNT(*) as count FROM channels").fetchone()['count']
