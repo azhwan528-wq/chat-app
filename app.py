@@ -26,9 +26,8 @@ UPLOAD_FOLDER = 'static/uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 if not os.path.exists(UPLOAD_FOLDER): os.makedirs(UPLOAD_FOLDER)
 
-# ⚠️ ایمیل و رمز ادمین جدید را اینجا بگذار
-ADMIN_EMAIL = "temeavachat@gmail.com" 
-ADMIN_PASSWORD = "NewPassword123" 
+# ⭐ دیگه نیازی به ایمیل و رمز ادمین نیست
+ADMIN_EMAIL = "aghwan528@gmail.com" # فقط برای اینکه پیام‌های خودکار از طرف این ایمیل باشه
 SUPPORT_EMAIL = "support@ava.com" 
 
 # ==========================================
@@ -40,7 +39,6 @@ def get_db_connection():
     return conn
 
 def init_db():
-    # ⭐ چک کردن و پاک کردن دیتابیس قدیمی در صورت نیاز
     if os.path.exists('ava.db'):
         try:
             conn = sqlite3.connect('ava.db')
@@ -48,14 +46,12 @@ def init_db():
             cursor.execute("PRAGMA table_info(users)")
             columns = [col[1] for col in cursor.fetchall()]
             conn.close()
-            
             if 'ban_until' not in columns:
                 os.remove('ava.db')
-                print("🗑️ دیتابیس قدیمی پاک شد و از نو ساخته می‌شود.")
+                print("🗑️ دیتابیس قدیمی پاک شد.")
         except Exception as e:
-            print(f"⚠️ خطا در چک کردن دیتابیس: {e}")
+            print(f"⚠️ خطا: {e}")
 
-    # ساخت دیتابیس جدید
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''CREATE TABLE IF NOT EXISTS users (
@@ -93,12 +89,6 @@ def init_db():
     cursor.execute("SELECT * FROM users WHERE email = ?", (SUPPORT_EMAIL,))
     if not cursor.fetchone():
         cursor.execute("INSERT INTO users (email, phone, is_verified, display_name, username) VALUES (?, '00000000000', 1, 'پشتیبانی آوا', 'support')", (SUPPORT_EMAIL,))
-    
-    # کاربر ادمین
-    cursor.execute("SELECT * FROM users WHERE is_admin = 1")
-    if not cursor.fetchone():
-        password_hash = generate_password_hash(ADMIN_PASSWORD)
-        cursor.execute("INSERT INTO users (email, phone, password_hash, is_verified, is_admin, display_name) VALUES (?, '00000000000', ?, 1, 1, 'مدیر اصلی')", (ADMIN_EMAIL, password_hash))
     
     # کانال اطلاع‌رسانی
     cursor.execute("SELECT * FROM channels WHERE name = 'اطلاع‌رسانی آوا'")
@@ -165,7 +155,7 @@ def add_user_to_announcement_channel(email):
     conn.close()
 
 # ==========================================
-# مسیرهای اصلی
+# مسیرهای اصلی کاربران
 # ==========================================
 @app.route('/', methods=['GET', 'POST'])
 def login():
@@ -211,7 +201,7 @@ def login():
             session['is_logged_in'] = True
             add_user_to_announcement_channel(email)
             conn = get_db_connection()
-            welcome_msg = "🎉 به پیام‌رسان آوا خوش آمدید!\n\nاز این پس می‌توانید گروه و کانال بسازید، با دوستان خود چت کنید و از امکانات برنامه لذت ببرید. اگر سوالی داشتید، از بخش پشتیبانی با ما در ارتباط باشید."
+            welcome_msg = "🎉 به پیام‌رسان آوا خوش آمدید!\n\nاز این پس می‌توانید گروه و کانال بسازید، با دوستان خود چت کنید و از امکانات برنامه لذت ببرید."
             conn.execute("INSERT INTO private_messages (sender_email, receiver_email, message) VALUES (?, ?, ?)", (SUPPORT_EMAIL, email, welcome_msg))
             conn.commit()
             conn.close()
@@ -224,14 +214,11 @@ def home():
     if not session.get('is_logged_in'): return redirect(url_for('login'))
     conn = get_db_connection()
     user = conn.execute("SELECT * FROM users WHERE email = ?", (session['user_email'],)).fetchone()
-    
-    # ⭐ اگه کاربر پیدا نشد (مثلاً دیتابیس پاک شده)، به لاگین برگردون
     if not user:
         conn.close()
         session.clear()
         flash("لطفاً دوباره وارد شوید.", "error")
         return redirect(url_for('login'))
-    
     owned_channels = conn.execute("SELECT * FROM channels WHERE owner_email = ? AND name NOT IN ('پشتیبانی آوا', 'اطلاع‌رسانی آوا')", (session['user_email'],)).fetchall()
     joined_channels = conn.execute('''SELECT c.* FROM channels c JOIN members m ON c.id = m.channel_id WHERE m.user_email = ?''', (session['user_email'],)).fetchall()
     conn.close()
@@ -380,7 +367,7 @@ def join_channel(invite_token):
     if channel:
         if is_channel_suspended(channel['id']):
             conn.close()
-            flash("این گروه/کانال به دلیل تخلف تعلیق شده است.", "error")
+            flash("این گروه/کانال تعلیق شده است.", "error")
             return redirect(url_for('home'))
         try:
             conn.execute("INSERT INTO members (channel_id, user_email) VALUES (?, ?)", (channel['id'], session['user_email']))
@@ -446,10 +433,11 @@ def delete_message(message_id):
     return redirect(url_for('chat', channel_id=channel_id))
 
 # ==========================================
-# ⭐ پنل ادمین (بدون لاگین)
+# ⭐ پنل ادمین (بدون نیاز به لاگین)
 # ==========================================
 @app.route('/admin_panel_secret')
 def admin_panel():
+    # دیگه نیازی به لاگین نیست، مستقیم پنل رو نشون بده
     conn = get_db_connection()
     total_users = conn.execute("SELECT COUNT(*) as count FROM users").fetchone()['count']
     total_channels = conn.execute("SELECT COUNT(*) as count FROM channels").fetchone()['count']
@@ -471,6 +459,8 @@ def admin_panel():
     used_gb = round(used / (1024**3), 2)
     free_gb = round(free / (1024**3), 2)
     return render_template('admin_panel.html', total_users=total_users, total_channels=total_channels, total_messages=total_messages, all_users=all_users, all_channels=all_channels, all_messages=all_messages, all_private_messages=all_private_messages, total_gb=total_gb, used_gb=used_gb, free_gb=free_gb)
+
+# ... (بقیه توابع ادمین مثل delete_message, edit_message, ban_user, suspend_channel, target_message و... بدون تغییر)
 
 @app.route('/admin/delete_message/<int:message_id>', methods=['POST'])
 def admin_delete_message(message_id):
