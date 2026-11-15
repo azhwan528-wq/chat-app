@@ -302,6 +302,7 @@ def saved_messages():
     conn.close()
     return render_template('saved_messages.html', messages=messages)
 
+# ⭐ مسیر اصلاح شده جستجو
 @app.route('/search', methods=['GET'])
 def search():
     if not session.get('is_logged_in'): return redirect(url_for('login'))
@@ -310,10 +311,14 @@ def search():
     if query:
         conn = get_db_connection()
         users = conn.execute("SELECT * FROM users WHERE username LIKE ? OR display_name LIKE ?", (f'%{query}%', f'%{query}%')).fetchall()
-        channels = conn.execute('''SELECT c.*, (SELECT COUNT(*) FROM members m WHERE m.channel_id = c.id) as member_count 
-                                   FROM channels c 
-                                   WHERE (c.name LIKE ? OR c.description LIKE ?) AND c.is_private = 0 AND c.name NOT IN ('پشتیبانی آوا', 'اطلاع‌رسانی آوا')
-                                   HAVING member_count >= 10''', (f'%{query}%', f'%{query}%')).fetchall()
+        channels = conn.execute('''
+            SELECT c.*, COUNT(m.id) as member_count 
+            FROM channels c 
+            LEFT JOIN members m ON c.id = m.channel_id 
+            WHERE (c.name LIKE ? OR c.description LIKE ?) AND c.is_private = 0 AND c.name NOT IN ('پشتیبانی آوا', 'اطلاع‌رسانی آوا')
+            GROUP BY c.id
+            HAVING COUNT(m.id) >= 10
+        ''', (f'%{query}%', f'%{query}%')).fetchall()
         conn.close()
         results = {'users': users, 'channels': channels}
     return render_template('search.html', query=query, results=results)
@@ -329,7 +334,7 @@ def user_profile(username):
         return redirect(url_for('search'))
     return render_template('user_profile.html', user=user)
 
-# ⭐ مسیر جدید: چت خصوصی بین دو کاربر
+# ⭐ مسیر چت خصوصی بین دو کاربر
 @app.route('/private_chat/<email>', methods=['GET', 'POST'])
 def private_chat(email):
     if not session.get('is_logged_in'): return redirect(url_for('login'))
@@ -483,8 +488,6 @@ def admin_panel():
     used_gb = round(used / (1024**3), 2)
     free_gb = round(free / (1024**3), 2)
     return render_template('admin_panel.html', total_users=total_users, total_channels=total_channels, total_messages=total_messages, all_users=all_users, all_channels=all_channels, all_messages=all_messages, all_private_messages=all_private_messages, total_gb=total_gb, used_gb=used_gb, free_gb=free_gb)
-
-# ... (بقیه توابع ادمین مثل delete_message, edit_message, ban_user, suspend_channel, target_message و... بدون تغییر)
 
 @app.route('/admin/delete_message/<int:message_id>', methods=['POST'])
 def admin_delete_message(message_id):
