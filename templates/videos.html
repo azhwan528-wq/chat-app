@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ویدیوها | آوا</title>
+    <style>
+        body { font-family: 'Tahoma', sans-serif; background-color: #f0f2f5; margin: 0; padding-bottom: 70px; }
+        .header { background-color: #5b9bd5; color: white; padding: 15px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+        .header a { color: white; text-decoration: none; font-size: 24px; }
+        .header h1 { margin: 0; font-size: 18px; }
+        
+        /* دکمه اضافه کردن ویدیو */
+        .add-video-btn { display: block; text-align: center; background: #fff; color: #5b9bd5; margin: 15px; padding: 15px; border-radius: 10px; text-decoration: none; font-weight: bold; border: 2px dashed #5b9bd5; }
+        
+        /* گرید ویدیوها */
+        .video-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 15px; }
+        .video-card { background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.1); text-decoration: none; color: inherit; }
+        .video-thumb { width: 100%; height: 120px; background: #ddd; display: flex; justify-content: center; align-items: center; color: #999; }
+        .video-thumb iframe { width: 100%; height: 100%; border: none; }
+        .video-info { padding: 10px; }
+        .video-title { font-size: 13px; font-weight: bold; color: #333; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        
+        .empty-state { text-align: center; color: #999; margin-top: 50px; padding: 20px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <a href="/home">&#8592;</a>
+        <h1>🎬 ویدیوهای آوا</h1>
+        <div style="width: 24px;"></div>
+    </div>
+
+    <a href="/add_video" class="add-video-btn">➕ افزودن ویدیوی جدید از آپارات</a>
+
+    {% if videos %}
+        <div class="video-grid">
+            {% for video in videos %}
+            <div class="video-card">
+                <div class="video-thumb">
+                    <iframe src="{{ video['video_url'] }}" allowfullscreen></iframe>
+                </div>
+                <div class="video-info">
+                    <p class="video-title">{{ video['title'] }}</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <h2>هنوز ویدیویی اضافه نشده</h2>
+            <p>اولین ویدیو رو از آپارات اضافه کن!</p>
+        </div>
+    {% endif %}
+</body>
+</html>
