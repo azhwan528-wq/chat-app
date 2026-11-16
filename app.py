@@ -12,6 +12,9 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
 app.secret_key = "supersecretkey_ava_2026_secure"
 
+# ⭐ محدودیت حجم فایل (۱۰ مگابایت)
+app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024 
+
 @app.after_request
 def add_header(response):
     response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
@@ -53,44 +56,30 @@ def init_db():
 
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('''CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, 
-        email TEXT UNIQUE NOT NULL, 
-        phone TEXT NOT NULL, 
-        password_hash TEXT, 
-        is_verified INTEGER DEFAULT 0, 
-        username TEXT UNIQUE, 
-        display_name TEXT, 
-        profile_pic TEXT, 
-        is_admin INTEGER DEFAULT 0, 
-        is_banned INTEGER DEFAULT 0, 
-        ban_until TIMESTAMP,
-        admin_custom_password TEXT
-    )''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS channels (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, 
-        name TEXT NOT NULL, 
-        description TEXT, 
-        owner_email TEXT NOT NULL, 
-        is_private INTEGER DEFAULT 0, 
-        channel_type TEXT DEFAULT 'channel', 
-        profile_pic TEXT, 
-        invite_token TEXT UNIQUE,
-        is_suspended INTEGER DEFAULT 0,
-        suspended_until TIMESTAMP
-    )''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT UNIQUE NOT NULL, phone TEXT NOT NULL, password_hash TEXT, is_verified INTEGER DEFAULT 0, username TEXT UNIQUE, display_name TEXT, profile_pic TEXT, is_admin INTEGER DEFAULT 0, is_banned INTEGER DEFAULT 0, ban_until TIMESTAMP, admin_custom_password TEXT)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS channels (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, description TEXT, owner_email TEXT NOT NULL, is_private INTEGER DEFAULT 0, channel_type TEXT DEFAULT 'channel', profile_pic TEXT, invite_token TEXT UNIQUE, is_suspended INTEGER DEFAULT 0, suspended_until TIMESTAMP)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS members (id INTEGER PRIMARY KEY AUTOINCREMENT, channel_id INTEGER NOT NULL, user_email TEXT NOT NULL, UNIQUE(channel_id, user_email))''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, channel_id INTEGER NOT NULL, sender_email TEXT NOT NULL, message TEXT NOT NULL, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS saved_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, user_email TEXT NOT NULL, message TEXT NOT NULL, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS private_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, sender_email TEXT NOT NULL, receiver_email TEXT NOT NULL, message TEXT NOT NULL, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     
-    # جدول برای ویدیوهای آپارات
+    # ⭐ جدول ویدیوها (آپارات یا لینک)
     cursor.execute('''CREATE TABLE IF NOT EXISTS videos (
         id INTEGER PRIMARY KEY AUTOINCREMENT, 
+        user_email TEXT NOT NULL, 
         title TEXT NOT NULL, 
         video_url TEXT NOT NULL, 
         thumbnail_url TEXT,
-        added_by TEXT,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )''')
+    
+    # ⭐ جدول استوری‌ها
+    cursor.execute('''CREATE TABLE IF NOT EXISTS stories (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, 
+        user_email TEXT NOT NULL, 
+        content TEXT NOT NULL, 
+        media_type TEXT DEFAULT 'text',
+        media_url TEXT,
         timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
     
@@ -303,6 +292,8 @@ def delete_account():
     conn.execute("DELETE FROM users WHERE email = ?", (email,))
     conn.execute("DELETE FROM saved_messages WHERE user_email = ?", (email,))
     conn.execute("DELETE FROM private_messages WHERE sender_email = ? OR receiver_email = ?", (email, email))
+    conn.execute("DELETE FROM videos WHERE user_email = ?", (email,))
+    conn.execute("DELETE FROM stories WHERE user_email = ?", (email,))
     conn.commit()
     conn.close()
     session.clear()
@@ -366,7 +357,7 @@ def saved_messages():
     return render_template('saved_messages.html', messages=messages)
 
 # ==========================================
-# ⭐ بخش جدید: ویدیوها (آپارات)
+# ⭐ بخش ویدیو (آپارات و ویدیوهای کاربران)
 # ==========================================
 @app.route('/videos')
 def videos():
@@ -383,21 +374,39 @@ def add_video():
         title = request.form.get('title', '').strip()
         video_url = request.form.get('video_url', '').strip()
         
-        # تبدیل لینک آپارات به لینک embed
+        if not title or not video_url:
+            flash("عنوان و لینک ویدیو الزامی است.", "error")
+            return redirect(url_for('add_video'))
+            
         if 'aparat.com/v/' in video_url:
             video_id = video_url.split('/v/')[-1]
             video_url = f"https://www.aparat.com/video/video/embed/videohash/{video_id}/vt/frame"
         elif 'aparat.com/video/video/embed/videohash/' not in video_url:
             flash("لطفاً لینک معتبر آپارات را وارد کنید.", "error")
             return redirect(url_for('add_video'))
-        
+            
         conn = get_db_connection()
-        conn.execute("INSERT INTO videos (title, video_url, added_by) VALUES (?, ?, ?)", (title, video_url, session['user_email']))
+        conn.execute("INSERT INTO videos (user_email, title, video_url) VALUES (?, ?, ?)", (session['user_email'], title, video_url))
         conn.commit()
         conn.close()
         flash("ویدیو با موفقیت اضافه شد!", "success")
         return redirect(url_for('videos'))
     return render_template('add_video.html')
+
+# ⭐ بخش استوری‌ها
+@app.route('/stories', methods=['GET', 'POST'])
+def stories():
+    if not session.get('is_logged_in'): return redirect(url_for('login'))
+    conn = get_db_connection()
+    if request.method == 'POST':
+        content = request.form.get('content', '').strip()
+        if content:
+            conn.execute("INSERT INTO stories (user_email, content) VALUES (?, ?)", (session['user_email'], content))
+            conn.commit()
+        return redirect(url_for('stories'))
+    all_stories = conn.execute("SELECT s.*, u.display_name, u.profile_pic FROM stories s JOIN users u ON s.user_email = u.email ORDER BY s.timestamp DESC").fetchall()
+    conn.close()
+    return render_template('stories.html', stories=all_stories)
 
 @app.route('/search', methods=['GET'])
 def search():
@@ -434,24 +443,18 @@ def user_profile(username):
 def private_chat(email):
     if not session.get('is_logged_in'): return redirect(url_for('login'))
     conn = get_db_connection()
-    
     other_user = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
     if not other_user:
         conn.close()
         flash("کاربری یافت نشد.", "error")
         return redirect(url_for('home'))
-    
     if request.method == 'POST':
         msg = request.form.get('message', '').strip()
         if msg:
             conn.execute("INSERT INTO private_messages (sender_email, receiver_email, message) VALUES (?, ?, ?)", (session['user_email'], email, msg))
             conn.commit()
         return redirect(url_for('private_chat', email=email))
-    
-    messages = conn.execute('''SELECT * FROM private_messages 
-                               WHERE (sender_email = ? AND receiver_email = ?) OR (sender_email = ? AND receiver_email = ?) 
-                               ORDER BY timestamp ASC''', 
-                           (session['user_email'], email, email, session['user_email'])).fetchall()
+    messages = conn.execute('''SELECT * FROM private_messages WHERE (sender_email = ? AND receiver_email = ?) OR (sender_email = ? AND receiver_email = ?) ORDER BY timestamp ASC''', (session['user_email'], email, email, session['user_email'])).fetchall()
     conn.close()
     return render_template('private_chat.html', messages=messages, user_email=session['user_email'], other_user=other_user)
 
@@ -513,16 +516,13 @@ def chat(channel_id):
     channel = conn.execute("SELECT * FROM channels WHERE id = ?", (channel_id,)).fetchone()
     if not channel:
         conn.close(); return redirect(url_for('home'))
-    
     if is_channel_suspended(channel_id):
         conn.close()
         flash("این گروه/کانال تعلیق شده است.", "error")
         return redirect(url_for('home'))
-    
     is_member = conn.execute("SELECT * FROM members WHERE channel_id = ? AND user_email = ?", (channel_id, session['user_email'])).fetchone()
     if not is_member and channel['owner_email'] != session['user_email']:
         conn.close(); flash("شما عضو نیستید.", "error"); return redirect(url_for('home'))
-    
     if request.method == 'POST':
         msg_text = request.form.get('message', '').strip()
         if msg_text:
@@ -532,14 +532,11 @@ def chat(channel_id):
                 conn.execute("INSERT INTO messages (channel_id, sender_email, message) VALUES (?, ?, ?)", (channel_id, session['user_email'], msg_text))
                 conn.commit()
         return redirect(url_for('chat', channel_id=channel_id))
-    
     messages = conn.execute('''SELECT m.*, u.display_name, u.username FROM messages m LEFT JOIN users u ON m.sender_email = u.email WHERE m.channel_id = ? ORDER BY m.timestamp ASC''', (channel_id,)).fetchall()
     conn.close()
-    
     can_send = True
     if channel['channel_type'] == 'channel' and channel['owner_email'] != session['user_email']:
         can_send = False
-    
     return render_template('chat.html', channel=channel, messages=messages, user_email=session['user_email'], can_send=can_send)
 
 @app.route('/delete_message/<int:message_id>', methods=['POST'])
@@ -558,7 +555,7 @@ def delete_message(message_id):
     return redirect(url_for('chat', channel_id=channel_id))
 
 # ==========================================
-# ⭐ پنل ادمین (بدون نیاز به لاگین)
+# ⭐ پنل ادمین
 # ==========================================
 @app.route('/admin_panel_secret')
 def admin_panel():
@@ -568,21 +565,16 @@ def admin_panel():
     total_messages = conn.execute("SELECT COUNT(*) as count FROM messages").fetchone()['count']
     all_users = conn.execute("SELECT * FROM users WHERE email != ? ORDER BY id DESC", (SUPPORT_EMAIL,)).fetchall()
     all_channels = conn.execute("SELECT * FROM channels WHERE name NOT IN ('پشتیبانی آوا', 'اطلاع‌رسانی آوا') ORDER BY id DESC").fetchall()
-    all_messages = conn.execute('''SELECT m.*, c.name as channel_name, u.phone as sender_phone 
-                                   FROM messages m 
-                                   LEFT JOIN channels c ON m.channel_id = c.id 
-                                   LEFT JOIN users u ON m.sender_email = u.email 
-                                   ORDER BY m.timestamp DESC''').fetchall()
-    all_private_messages = conn.execute('''SELECT pm.*, u.phone as sender_phone 
-                                           FROM private_messages pm 
-                                           LEFT JOIN users u ON pm.sender_email = u.email 
-                                           ORDER BY pm.timestamp DESC''').fetchall()
+    all_messages = conn.execute('''SELECT m.*, c.name as channel_name, u.phone as sender_phone FROM messages m LEFT JOIN channels c ON m.channel_id = c.id LEFT JOIN users u ON m.sender_email = u.email ORDER BY m.timestamp DESC''').fetchall()
+    all_private_messages = conn.execute('''SELECT pm.*, u.phone as sender_phone FROM private_messages pm LEFT JOIN users u ON pm.sender_email = u.email ORDER BY pm.timestamp DESC''').fetchall()
     conn.close()
     total, used, free = shutil.disk_usage("/")
     total_gb = round(total / (1024**3), 2)
     used_gb = round(used / (1024**3), 2)
     free_gb = round(free / (1024**3), 2)
     return render_template('admin_panel.html', total_users=total_users, total_channels=total_channels, total_messages=total_messages, all_users=all_users, all_channels=all_channels, all_messages=all_messages, all_private_messages=all_private_messages, total_gb=total_gb, used_gb=used_gb, free_gb=free_gb)
+
+# ... (بقیه توابع ادمین بدون تغییر)
 
 @app.route('/admin/delete_message/<int:message_id>', methods=['POST'])
 def admin_delete_message(message_id):
