@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>استوری‌ها | آوا</title>
+    <style>
+        body { font-family: 'Tahoma', sans-serif; background-color: #f0f2f5; margin: 0; padding-bottom: 20px; }
+        .header { background-color: #5b9bd5; color: white; padding: 15px; display: flex; align-items: center; }
+        .header a { color: white; text-decoration: none; font-size: 24px; margin-left: 15px; }
+        
+        /* فرم ساخت استوری */
+        .story-form { background: white; margin: 15px; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .story-form textarea { width: 100%; border: 1px solid #ddd; border-radius: 8px; padding: 10px; font-family: 'Tahoma'; resize: none; box-sizing: border-box; margin-bottom: 10px; min-height: 80px; }
+        .story-form button { background: #5b9bd5; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-family: 'Tahoma'; width: 100%; }
+        
+        /* لیست استوری‌ها */
+        .stories-container { padding: 0 15px; }
+        .story-card { background: white; border-radius: 10px; margin-bottom: 15px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .story-header { display: flex; align-items: center; padding: 10px 15px; border-bottom: 1px solid #eee; }
+        .story-avatar { width: 40px; height: 40px; border-radius: 50%; background: #5b9bd5; color: white; display: flex; justify-content: center; align-items: center; margin-left: 10px; font-weight: bold; overflow: hidden; }
+        .story-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .story-name { font-weight: bold; font-size: 14px; color: #333; }
+        .story-time { font-size: 11px; color: #999; margin-right: auto; }
+        .story-content { padding: 15px; font-size: 15px; color: #444; line-height: 1.6; }
+        
+        .empty-state { text-align: center; color: #999; margin-top: 30px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <a href="/home">&#8592;</a>
+        <h1>📸 استوری‌ها</h1>
+    </div>
+
+    <!-- فرم ساخت استوری -->
+    <div class="story-form">
+        <form method="POST">
+            <textarea name="content" placeholder="چه خبر؟ استوری خود را بنویسید..." required></textarea>
+            <button type="submit">انتشار استوری</button>
+        </form>
+    </div>
+
+    <!-- لیست استوری‌ها -->
+    <div class="stories-container">
+        {% if stories %}
+            {% for story in stories %}
+            <div class="story-card">
+                <div class="story-header">
+                    <div class="story-avatar">
+                        {% if story['profile_pic'] %}<img src="{{ url_for('static', filename='uploads/' + story['profile_pic']) }}">{% else %}{{ story['display_name'][0] | upper }}{% endif %}
+                    </div>
+                    <div class="story-name">{{ story['display_name'] }}</div>
+                    <div class="story-time">{{ story['timestamp'][11:16] }}</div>
+                </div>
+                <div class="story-content">{{ story['content'] }}</div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-state">
+                <h2>هنوز استوری‌ای نیست</h2>
+                <p>اولین استوری رو خودت بذار!</p>
+            </div>
+        {% endif %}
+    </div>
+</body>
+</html>
