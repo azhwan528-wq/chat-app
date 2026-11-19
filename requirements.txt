@@ -1,5 +1,6 @@
 Flask
 Werkzeug
 gunicorn
-pywebpush
-py-vapid
+requests
+sqlalchemy
+libsql-experimental
