@@ -1,194 +1,109 @@
-<!DOCTYPE html>
-<html lang="fa" dir="rtl">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>پیام‌رسان آوا | خانه</title>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;700&display=swap');
-        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-        body { font-family: 'Vazirmatn', 'Tahoma', sans-serif; background-color: #f4f5f7; color: #333; padding-bottom: 70px; }
+import os
+import requests
+from flask import Flask, render_template, request, redirect, url_for, session, flash
+from libsql_client import create_client
+from datetime import datetime
 
-        /* هدر بالا */
-        .top-header { display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background: #fff; position: sticky; top: 0; z-index: 100; }
-        .top-header .title { font-size: 20px; font-weight: bold; color: #333; }
-        .top-header .icon { font-size: 24px; color: #555; cursor: pointer; text-decoration: none; }
+app = Flask(__name__)
+app.secret_key = "your_super_secret_key" # حتما تغییر بده
 
-        /* استوری‌ها */
-        .stories { display: flex; gap: 15px; padding: 10px 20px; background: #fff; overflow-x: auto; scrollbar-width: none; }
-        .stories::-webkit-scrollbar { display: none; }
-        .story-item { display: flex; flex-direction: column; align-items: center; gap: 5px; cursor: pointer; text-decoration: none; color: inherit; }
-        .story-avatar { width: 65px; height: 65px; border-radius: 50%; background: #ccc; display: flex; justify-content: center; align-items: center; color: #fff; font-weight: bold; font-size: 24px; position: relative; border: 2px solid transparent; background-clip: padding-box; }
-        .story-avatar.my-story { border: 2px solid #1ed760; padding: 3px; }
-        .story-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
-        .story-avatar .plus { position: absolute; bottom: 0; right: 0; background: #1ed760; color: #fff; width: 22px; height: 22px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 14px; border: 2px solid #fff; }
-        .story-name { font-size: 11px; color: #555; max-width: 70px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+# --- CONFIGURATION ---
+TURSO_URL = "libsql://avadb-azhwan528-wq.aws-us-east-1.turso.io"
+TURSO_TOKEN = "*******"
+IMGBB_API_KEY = "dece02b308514ea957c6d0d2cea464e"
 
-        /* تب‌ها (فیلتر) */
-        .tabs { display: flex; background: #fff; border-bottom: 1px solid #eee; overflow-x: auto; scrollbar-width: none; position: sticky; top: 60px; z-index: 90; }
-        .tabs::-webkit-scrollbar { display: none; }
-        .tab { flex: 1; text-align: center; padding: 15px 0; font-size: 14px; color: #777; cursor: pointer; position: relative; white-space: nowrap; min-width: 100px; }
-        .tab.active { color: #1ed760; font-weight: bold; }
-        .tab.active::after { content: ''; position: absolute; bottom: 0; left: 10%; right: 10%; height: 3px; background: #1ed760; border-radius: 3px 3px 0 0; }
+# اتصال به دیتابیس Turso
+db = create_client(url=TURSO_URL, auth_token=TURSO_TOKEN)
 
-        /* لیست چت‌ها */
-        .chat-list { background: #fff; }
-        .chat-item { display: flex; align-items: center; padding: 12px 20px; border-bottom: 1px solid #f0f0f0; text-decoration: none; color: inherit; }
-        .chat-avatar { width: 55px; height: 55px; border-radius: 50%; background: #e0e0e0; display: flex; justify-content: center; align-items: center; margin-left: 15px; font-weight: bold; font-size: 20px; overflow: hidden; flex-shrink: 0; }
-        .chat-avatar img { width: 100%; height: 100%; object-fit: cover; }
-        .chat-content { flex-grow: 1; overflow: hidden; }
-        .chat-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-        .chat-name { font-weight: bold; font-size: 15px; color: #333; display: flex; align-items: center; gap: 5px; }
-        .chat-time { font-size: 11px; color: #999; }
-        .chat-msg { font-size: 13px; color: #777; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .type-icon { font-size: 12px; color: #999; }
+# --- LIMITS CONFIGURATION ---
+DAILY_TOTAL_LIMIT_MB = 25
+DAILY_PHOTO_LIMIT_MB = 10
+DAILY_VIDEO_LIMIT_MB = 25
 
-        /* منوی پایین */
-        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; display: flex; justify-content: space-around; align-items: center; padding: 10px 0; border-top: 1px solid #eee; z-index: 1000; }
-        .nav-item { display: flex; flex-direction: column; align-items: center; text-decoration: none; color: #888; font-size: 11px; gap: 3px; }
-        .nav-item.active { color: #1ed760; }
-        .nav-item .icon { font-size: 22px; }
-
-        /* دکمه شناور (FAB) */
-        .fab { position: fixed; bottom: 80px; left: 20px; width: 55px; height: 55px; background: #5b9bd5; color: #fff; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 24px; box-shadow: 0 4px 10px rgba(91, 155, 213, 0.4); text-decoration: none; z-index: 1000; }
-        .fab-menu { display: none; position: fixed; bottom: 140px; left: 20px; background: #fff; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); z-index: 1000; flex-direction: column; overflow: hidden; }
-        .fab-menu a { padding: 12px 20px; text-decoration: none; color: #333; font-size: 14px; border-bottom: 1px solid #eee; }
-        .fab-menu a:last-child { border-bottom: none; }
-    </style>
-</head>
-<body>
-
-    <!-- هدر بالا -->
-    <div class="top-header">
-        <a href="/search" class="icon" style="text-decoration:none;">🔍</a>
-        <div class="title">پیام‌رسان آوا</div>
-        <a href="/videos" class="icon" style="text-decoration:none;" title="ویدیوها">🎬</a>
-    </div>
-
-    <!-- استوری‌ها -->
-    <div class="stories">
-        <a href="/stories" class="story-item">
-            <div class="story-avatar my-story" style="background: #5b9bd5;">
-                {{ user['email'][0] | upper }}
-                <div class="plus">+</div>
-            </div>
-            <div class="story-name">استوری من</div>
-        </a>
-        <!-- لینک به صفحه استوری‌ها -->
-        <a href="/stories" class="story-item">
-            <div class="story-avatar" style="background: #9c27b0;">📸</div>
-            <div class="story-name">همه استوری‌ها</div>
-        </a>
-    </div>
-
-    <!-- تب‌ها -->
-    <div class="tabs">
-        <div class="tab active" onclick="filterChats('all', this)">همه</div>
-        <div class="tab" onclick="filterChats('group', this)">گروه‌ها</div>
-        <div class="tab" onclick="filterChats('channel', this)">کانال‌ها</div>
-        <div class="tab" onclick="filterChats('private', this)">پیام‌های شخصی</div>
-    </div>
-
-    <!-- لیست چت‌ها -->
-    <div class="chat-list" id="chatList">
-        {% if all_chats %}
-            {% for chat in all_chats %}
-            <a href="{{ chat['link'] }}" class="chat-item" data-type="{{ chat['type'] }}">
-                <div class="chat-avatar">
-                    {% if chat['avatar'] %}
-                        <img src="{{ url_for('static', filename='uploads/' + chat['avatar']) }}">
-                    {% else %}
-                        {{ chat['name'][0] | upper }}
-                    {% endif %}
-                </div>
-                <div class="chat-content">
-                    <div class="chat-header">
-                        <div class="chat-name">
-                            {{ chat['name'] }}
-                            {% if chat['type'] == 'channel' %}<span class="type-icon">📢</span>{% endif %}
-                            {% if chat['type'] == 'group' %}<span class="type-icon">👥</span>{% endif %}
-                            {% if chat['is_owner'] %}<span class="type-icon" title="مدیر">👑</span>{% endif %}
-                        </div>
-                        <div class="chat-time">{{ chat['last_time'][11:16] if chat['last_time'] != '2026-01-01 00:00:00' else '' }}</div>
-                    </div>
-                    <div class="chat-msg">
-                        {{ chat['last_message'] }}
-                    </div>
-                </div>
-            </a>
-            {% endfor %}
-        {% else %}
-            <div style="text-align: center; padding: 50px 20px; color: #888;">
-                <div style="font-size: 40px; margin-bottom: 15px;">💬</div>
-                <div style="font-weight: bold; margin-bottom: 10px;">هنوز گفتگویی نداری</div>
-                <div style="font-size: 13px;">با دوستانت شروع به گفتگو کن یا یک گروه و کانال بساز.</div>
-            </div>
-        {% endif %}
-    </div>
-
-    <!-- منوی پایین -->
-    <div class="bottom-nav">
-        <a href="/home" class="nav-item active">
-            <span class="icon">🏠</span>
-            خانه
-        </a>
-        <a href="/stories" class="nav-item">
-            <span class="icon">📸</span>
-            استوری
-        </a>
-        <a href="/videos" class="nav-item">
-            <span class="icon">🎬</span>
-            ویدیوها
-        </a>
-        <a href="/search" class="nav-item">
-            <span class="icon">🔍</span>
-            جستجو
-        </a>
-        <a href="/profile" class="nav-item">
-            <span class="icon">👤</span>
-            پروفایل
-        </a>
-    </div>
-
-    <!-- دکمه شناور -->
-    <a href="#" class="fab" onclick="toggleFab(event)">✏️</a>
-    <div class="fab-menu" id="fabMenu">
-        <a href="/create/channel">📢 ساخت کانال</a>
-        <a href="/create/group">👥 ساخت گروه</a>
-    </div>
-
-    <!-- اسکریپت‌ها -->
-    <script>
-        // فیلتر کردن تب‌ها
-        function filterChats(type, element) {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            if (element) element.classList.add('active');
-
-            const items = document.querySelectorAll('.chat-item');
-            items.forEach(item => {
-                if (type === 'all' || item.getAttribute('data-type') === type) {
-                    item.style.display = 'flex';
-                } else {
-                    item.style.display = 'none';
-                }
-            });
+def get_user_usage(user_id):
+    """محاسبه حجم مصرف شده توسط کاربر در امروز"""
+    today = datetime.now().strftime('%Y-%m-%d')
+    query = """
+    SELECT 
+        SUM(CASE WHEN file_type = 'photo' THEN file_size ELSE 0 END) as photo_usage,
+        SUM(CASE WHEN file_type = 'video' THEN file_size ELSE 0 END) as video_usage,
+        SUM(file_size) as total_usage
+    FROM media_usage 
+    WHERE user_id = ? AND usage_date = ?
+    """
+    result = db.execute(query, [user_id, today])
+    row = result.fetchone()
+    if row:
+        return {
+            "photo": row[0] or 0,
+            "video": row[1] or 0,
+            "total": row[2] or 0
         }
+    return {"photo": 0, "video": 0, "total": 0}
 
-        // نمایش/مخفی کردن منوی دکمه شناور
-        function toggleFab(event) {
-            event.preventDefault();
-            const menu = document.getElementById('fabMenu');
-            menu.style.display = menu.style.display === 'flex' ? 'none' : 'flex';
-        }
+def check_limits(user_id, file_size_mb, file_type):
+    """بررسی اینکه آیا کاربر سهمیه دارد یا خیر"""
+    usage = get_user_usage(user_id)
+    
+    if usage['total'] + file_size_mb > DAILY_TOTAL_LIMIT_MB:
+        return False, "سهمیه کلی روزانه (25MB) تمام شده است."
+    
+    if file_type == 'photo' and (usage['photo'] + file_size_mb > DAILY_PHOTO_LIMIT_MB):
+        return False, "سهمیه روزانه عکس (10MB) تمام شده است."
+    
+    if file_type == 'video' and (usage['video'] + file_size_mb > DAILY_VIDEO_LIMIT_MB):
+        return False, "سهمیه روزانه ویدیو (25MB) تمام شده است."
+    
+    return True, "OK"
 
-        // بستن منو با کلیک بیرون
-        document.addEventListener('click', function(event) {
-            const fab = document.querySelector('.fab');
-            const menu = document.getElementById('fabMenu');
-            if (!fab.contains(event.target) && !menu.contains(event.target)) {
-                menu.style.display = 'none';
-            }
-        });
-    </script>
-</body>
-</html>
+@app.route('/upload', methods=['POST'])
+def upload_media():
+    user_id = session.get('user_id') # فرض بر اینکه کاربر لاگین کرده
+    if not user_id:
+        return "لطفا ابتدا وارد شوید", 403
+
+    file = request.files.get('file')
+    if not file:
+        return "فایلی یافت نشد", 400
+
+    file_size_mb = len(file.read()) / (1024 * 1024)
+    file.seek(0) # بازگرداندن اشاره‌گر فایل به اول برای آپلود
+    
+    file_type = 'video' if file.content_type.startswith('video') else 'photo'
+
+    # ۱. بررسی محدودیت‌ها
+    allowed, message = check_limits(user_id, file_size_mb, file_type)
+    if not allowed:
+        flash(message)
+        return redirect(url_for('index'))
+
+    # ۲. آپلود در ImgBB
+    try:
+        files = {'image': file}
+        payload = {'key': IMGBB_API_KEY}
+        response = requests.post("https://api.imgbb.com/1/upload", data=payload, files=files)
+        res_data = response.json()
+
+        if res_data.get('success'):
+            media_url = res_data['data']['url']
+            
+            # ۳. ذخیره در دیتابیس (پیام و ثبت مصرف حجم)
+            # ثبت پیام در جدول messages
+            db.execute("INSERT INTO messages (user_id, content, media_url, media_type) VALUES (?, ?, ?, ?)",
+                       [user_id, "New Media", media_url, file_type])
+            
+            # ثبت حجم مصرف شده در جدول media_usage
+            db.execute("INSERT INTO media_usage (user_id, file_size, file_type, usage_date) VALUES (?, ?, ?, ?)",
+                       [user_id, file_size_mb, file_type, datetime.now().strftime('%Y-%m-%d')])
+            
+            db.commit()
+            flash("آپلود با موفقیت انجام شد!")
+        else:
+            flash("خطا در آپلود به ImgBB")
+    except Exception as e:
+        flash(f"خطای سیستمی: {str(e)}")
+
+    return redirect(url_for('index'))
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
