@@ -1,6 +1,6 @@
+# requirements.txt
 Flask
-Werkzeug
-gunicorn
+flask-sqlalchemy
+libsql-client
 requests
-sqlalchemy
-libsql-experimental
+python-dotenv
